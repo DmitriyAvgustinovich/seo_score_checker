@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "SEO Score Checker",
+  "version": "1.0.0",
+  "description": "Check any page's SEO score, revenue risk, and top fixes in one click.",
+  "permissions": ["activeTab", "scripting"],
+  "action": {
+    "default_title": "Check SEO Score",
+    "default_popup": "popup.html"
+  }
+}
