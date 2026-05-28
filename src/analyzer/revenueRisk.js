@@ -78,15 +78,6 @@ export function calculateRevenueRisk(issues, pageData) {
     };
   }
 
-  if (hasIssue(unresolved, "h1_missing")) {
-    return {
-      level: "High",
-      category: "Content Clarity",
-      reason: "Missing H1 weakens topic clarity and can hurt search visibility.",
-      topRiskIssueId: "h1_missing"
-    };
-  }
-
   if (pageData.commercialIntent.detected && hasIssue(unresolved, "meta_description_missing")) {
     const compoundCommercialIssues = unresolved.filter((issue) =>
       ["meta_description_missing", "h1_multiple", "headings_skipped", "images_missing_alt_high", "jsonld_missing_or_invalid"].includes(issue.id)
@@ -104,7 +95,7 @@ export function calculateRevenueRisk(issues, pageData) {
     return {
       level: "Medium",
       category: "Snippet & CTR",
-      reason: "Missing meta description on a commercial page may reduce search clicks and traffic potential, even if the page can still rank.",
+      reason: "Missing meta description on this commercial page may reduce search clicks even if the page can still rank.",
       topRiskIssueId: "meta_description_missing"
     };
   }
@@ -112,6 +103,19 @@ export function calculateRevenueRisk(issues, pageData) {
   const criticalClusters = unresolved.filter(
     (issue) => !issue.passed && (issue.section === "indexability" || issue.section === "metadata")
   );
+
+  const h1MajorCompanions = unresolved.filter((issue) =>
+    ["meta_description_missing", "title_length", "meta_description_length", "headings_skipped", "images_missing_alt_high", "jsonld_invalid"].includes(issue.id)
+  );
+
+  if (hasIssue(unresolved, "h1_missing") && h1MajorCompanions.length > 0) {
+    return {
+      level: "High",
+      category: "Content Clarity",
+      reason: "Missing H1 combined with other major page issues weakens topic clarity and search visibility.",
+      topRiskIssueId: "h1_missing"
+    };
+  }
 
   if (
     criticalClusters.length >= 2 &&
@@ -129,6 +133,7 @@ export function calculateRevenueRisk(issues, pageData) {
     "title_length",
     "meta_description_missing",
     "meta_description_length",
+    "h1_missing",
     "h1_multiple",
     "headings_skipped",
     "images_missing_alt_medium",
@@ -146,6 +151,7 @@ export function calculateRevenueRisk(issues, pageData) {
       title_length: "Title length may reduce search relevance and click potential.",
       meta_description_missing: "Missing meta description may reduce search clicks and traffic potential.",
       meta_description_length: "Meta description length may reduce snippet quality in search results.",
+      h1_missing: "Missing H1 weakens topic clarity for this page.",
       h1_multiple: "Multiple H1 tags can weaken page structure and topical clarity.",
       headings_skipped: "Weak heading order can make page structure harder for search engines to interpret.",
       images_missing_alt_medium: "Many images without alt text can weaken accessibility and search context.",
@@ -195,7 +201,7 @@ export function calculateRevenueRisk(issues, pageData) {
     return {
       level: "Low",
       category: "Minor Signals",
-      reason: "Minor SEO issues were found, but no critical revenue risks were detected.",
+      reason: "Minor SEO issues were found, but no critical traffic risks were detected.",
       topRiskIssueId: lowPriority.id
     };
   }
@@ -203,7 +209,7 @@ export function calculateRevenueRisk(issues, pageData) {
   return {
     level: "Low",
     category: "No material risk",
-    reason: "No critical SEO revenue risks detected.",
+    reason: "No critical traffic risks detected in this quick current-page check.",
     topRiskIssueId: null
   };
 }

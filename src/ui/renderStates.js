@@ -21,21 +21,25 @@ function renderState(root, title, description, options = {}) {
 }
 
 export function renderLoading(root) {
-  renderState(root, "Checking this page...", "Running a local SEO audit for the active tab.", {
+  renderState(root, "SEO Score Checker", "Checking the open URL...", {
     loading: true
   });
 }
 
 export function renderRestricted(root) {
-  renderState(root, "Page unavailable", "Chrome does not allow extensions to inspect this page.");
+  renderState(
+    root,
+    "SEO Score Checker",
+    "Chrome does not allow extensions to inspect this page. Open a regular website page and try again."
+  );
 }
 
 export function renderUnsupported(root) {
-  renderState(root, "Unsupported page", "This page type cannot be analyzed.");
+  renderState(root, "SEO Score Checker", "This page cannot be analyzed. Open a regular website page and try again.");
 }
 
 export function renderError(root) {
-  renderState(root, "Check failed", "Could not check this page. Try again.", {
+  renderState(root, "SEO Score Checker", "Refresh the page and run the check again.", {
     actionLabel: "Recheck",
     actionId: "recheck"
   });

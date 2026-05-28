@@ -1,738 +1,323 @@
 # SEO Score Checker
 
-`SEO Score Checker` is a local Chrome Extension (Manifest V3) that audits the currently active tab without external APIs or network calls. It inspects the DOM, computes a section-based SEO score, derives a separate revenue-risk heuristic, ranks the top fixes, shows evidence tabs, exports a links CSV, and opens a printable report for PDF export.
+`SEO Score Checker` is a Manifest V3 Chrome extension for current-page SEO scoring and explainable top fixes.
 
-This README documents the current implementation exactly as it works in code.
+It checks only the currently open URL / active tab. It is not a crawler, full website audit, rank tracker, backlink checker, keyword tool, PageSpeed tool, or SEO suite.
 
-## 1. Product summary
+## Product Promise
 
-The extension gives you:
+The popup answers one question:
+
+```text
+How good is this page's SEO right now?
+```
+
+The first screen shows:
 
 - `SEO Score` from `0` to `100`
-- `Revenue Risk` with:
-  - level: `High`, `Medium`, `Low`
-  - category
-  - reason
-- `Top 3 Fixes`
+- `Grade`: `Good`, `Needs improvement`, or `Critical issues`
+- `Traffic Risk`: `Low`, `Medium`, or `High`
+- explainable `Top 3 Fixes`
 - `SERP Preview`
-- section breakdown across:
-  - `Indexability`
-  - `Metadata`
-  - `Structure`
-  - `Technical`
-  - `Images`
-  - `Links`
-  - `Social`
-- evidence tabs:
-  - `Overview`
-  - `Page`
-  - `Links`
-  - `Content`
-  - `Social`
-- `Export CSV` for the collected links table
-- `Export PDF` through a dedicated `report.html` page and Chrome's native print flow
+- `Section Breakdown`
 
-The extension is intentionally `DOM-only`. It does not crawl the site, check live HTTP headers, call external services, or estimate money/ROI.
+`Traffic Risk` is a heuristic priority label for organic visibility, snippets, clicks, and common publishing issues. It is not a revenue estimate or ROI forecast.
 
-## 2. Architecture
+## Architecture
 
-The extension has four main layers:
+The extension keeps the existing vanilla JavaScript stack:
 
-### 2.1 Popup layer
+- `manifest.json`: Manifest V3 configuration
+- `popup.html`: popup shell
+- `popup.js`: active tab lookup, script injection, analysis orchestration, CSV/PDF actions
+- `content.js`: local DOM collection in the active tab
+- `report.html` / `report.js`: printable report page for PDF export
+- `src/analyzer/*`: scoring, risk, top fixes, SERP preview
+- `src/ui/*`: popup/report rendering
+- `src/constants/*`: weights, thresholds, issue catalog
 
-`popup.html` loads `popup.js`, which:
+No framework, build system, TypeScript, remote API, analytics, login, storage, or crawler is added.
 
-1. detects the active tab
-2. blocks restricted URLs
-3. injects `content.js` via `chrome.scripting.executeScript`
-4. receives a serializable `pageData` object
-5. runs:
-   - `scorePage(pageData)`
-   - `calculateRevenueRisk(audit.issues, pageData)`
-   - `getTopFixes(audit.issues, pageData)`
-   - `buildSerpPreview(pageData)`
-6. renders the popup UI
-
-### 2.2 Collection layer
-
-`content.js` runs directly in the active page and returns collected data from the DOM only.
-
-### 2.3 Analysis layer
-
-The analysis is pure local JavaScript:
-
-- `src/analyzer/scorePage.js`
-- `src/analyzer/revenueRisk.js`
-- `src/analyzer/recommendations.js`
-- `src/analyzer/serpPreview.js`
-
-### 2.4 UI / export layer
-
-The popup UI is rendered through:
-
-- `src/ui/renderApp.js`
-- `src/ui/reportView.js`
-- related UI helpers
-
-PDF export does not use inline scripts. The popup opens `report.html#data=...`, and `report.js` hydrates a printable report from the hash payload.
-
-## 3. Permissions and security model
+## Permissions
 
 The manifest uses only:
 
 - `activeTab`
 - `scripting`
 
-It does **not** use:
+It does not use:
 
-- `host_permissions`
-- `content_scripts` in the manifest
-- background service worker
+- `<all_urls>`
+- broad `host_permissions`
+- `tabs`
+- `identity`
+- `cookies`
+- `webRequest`
+- `debugger`
+- `history`
+- `bookmarks`
+- `storage`
+- background crawler
 - remote code
-- external APIs
 
-Rendering uses HTML escaping for user-controlled text to avoid DOM injection in the popup/report.
+Analysis is user-triggered by opening/clicking the extension popup.
 
-## 4. Data flow
-
-### 4.1 Popup execution flow
-
-When the user opens the extension:
+## Data Flow
 
 1. `popup.js` queries the active tab.
-2. If the URL is restricted, the popup shows a restricted state.
-3. Otherwise it injects `content.js`.
-4. `content.js` collects `pageData`.
+2. Restricted browser/extension pages are blocked before injection.
+3. `popup.js` injects `content.js` with `chrome.scripting.executeScript`.
+4. `content.js` collects DOM-derived `pageData`.
 5. The popup computes:
-   - `audit`
-   - `risk`
-   - `topFixes`
-   - `serpPreview`
-6. The popup renders the final report.
-
-### 4.2 Restricted URLs
-
-The popup blocks:
-
-- `chrome:`
-- `edge:`
-- `brave:`
-- `about:`
-- `chrome-extension:`
-- `https://chromewebstore.google.com/...`
-
-### 4.3 Unsupported state
-
-If the page does not expose a usable `document.body`, the popup shows an unsupported state.
-
-## 5. Collected data model
-
-The extension returns one `pageData` object with the following top-level fields:
-
-- `url`
-- `hostname`
-- `title`
-- `metaDescription`
-- `canonical`
-- `robots`
-- `h1`
-- `headings`
-- `jsonLd`
-- `images`
-- `links`
-- `technical`
-- `openGraph`
-- `twitter`
-- `commercialIntent`
-- `urlSignals`
-- `readability`
-
-### 5.1 Title
-
-Collected from the `<title>` element:
-
-- `text`
-- `length`
-- `exists`
-
-### 5.2 Meta description
-
-Collected from `meta[name="description"]`:
-
-- `text`
-- `length`
-- `exists`
-
-### 5.3 Canonical
-
-Collected from `link[rel~="canonical" i]`:
-
-- `href`
-- `exists`
-- `isValid`
-- `pointsToCurrentUrl`
-
-Canonical comparison normalizes:
-
-- hash removal
-- default ports
-- trailing slash cleanup for non-root paths
-
-### 5.4 Robots
-
-Collected from:
-
-- `meta[name="robots"]`
-- `meta[name="googlebot"]`
-
-Returned fields:
-
-- `content`
-- `googlebotContent`
-- `noindex`
-- `nofollow`
-
-### 5.5 Headings
-
-Collected from all `h1,h2,h3,h4,h5,h6`:
-
-- `h1.count`
-- `h1.texts`
-- `headings.total`
-- `headings.items`
-- `headings.counts`
-- `headings.hasSkippedLevels`
-- `headings.skipExamples`
-
-A skipped level means the next heading jumps by more than one level, for example:
-
-- `H1 -> H4`
-- `H2 -> H5`
-
-Up to `5` skip examples are stored.
-
-### 5.6 JSON-LD
-
-Collected from `script[type="application/ld+json"]`:
-
-- `count`
-- `validCount`
-- `invalidCount`
-- `types`
-
-The parser also traverses arrays and `@graph`.
-
-### 5.7 Images
-
-All `document.images` are collected. Then a subset of `meaningful` images is derived.
-
-An image is treated as hidden/decorative if any of these is true:
-
-- `hidden === true`
-- `role="presentation"`
-- `aria-hidden="true"`
-- width or height `<= 2`
-- `display: none`
-- `visibility: hidden`
-
-Returned image data:
-
-- `total`
-- `meaningfulTotal`
-- `missingAlt`
-- `missingAltRatio`
-- `genericFilenameCount`
-- `missingDimensionsCount`
-- `missingAltSamples` (up to `20`)
-
-Generic filename detection currently matches names like:
-
-- `img123`
-- `image-42`
-- `photo_1`
-- `dsc99`
-- `screenshot17`
-
-### 5.8 Links
-
-Collected from all `a[href]`.
-
-Each link is classified as:
-
-- `internal`
-- `external`
-- `placeholder`
-
-Placeholder links include:
-
-- empty href
-- `#`
-- `javascript:...`
-- invalid URLs
-
-Returned link data:
-
-- `total`
-- `internal`
-- `external`
-- `placeholders`
-- `contextualInternal`
-- `genericAnchorCount`
-- `items`
-
-Each `items[]` row contains:
-
-- `text`
-- `href`
-- `type`
-- `followType`
-- `rel`
-- `urlKind`
-
-#### Contextual internal links
-
-An internal link is considered contextual when it is **not** inside:
-
-- `nav`
-- `header`
-- `footer`
-- `[role="navigation"]`
-- `aside`
-
-#### Generic anchor detection
-
-Current generic anchor list:
-
-- `click here`
-- `read more`
-- `learn more`
-- `more`
-- `here`
-- `details`
-- `view more`
-- `see more`
-
-### 5.9 Technical
-
-Collected technical fields:
-
-- `viewport`
-- `hasViewport`
-- `hasResponsiveViewport`
-- `lang`
-- `charset`
-
-Responsive viewport currently means the viewport string includes `width=device-width`.
-
-### 5.10 Social preview data
-
-Collected:
-
-- `og:title`
-- `og:description`
-- `og:image`
-- `twitter:card`
-- `twitter:title`
-- `twitter:description`
-- `twitter:image`
-
-### 5.11 Commercial intent heuristic
-
-`commercialIntent.detected` is based on whether the combined haystack contains any of these terms:
-
-- `pricing`
-- `buy`
-- `shop`
-- `product`
-- `service`
-- `demo`
-- `trial`
-- `contact`
-- `booking`
-- `checkout`
-- `cart`
-- `category`
-- `plan`
-- `subscribe`
-- `order`
-- `quote`
-
-The haystack includes:
-
-- current URL
-- title text
-- all H1 texts
-- first `3000` characters of page body text
-
-Returned fields:
-
-- `detected`
-- `matchedTerms`
-
-### 5.12 URL signals
-
-The extension derives:
-
-- `length`
-- `pathDepth`
-- `queryParamCount`
-- `slugTokens`
-- `matchingTokens`
-- `reflectsTopic`
-- `longUrl`
-- `deepPath`
-
-Thresholds:
-
-- `longUrl = currentUrl.href.length > 115`
-- `deepPath = pathDepth > 3`
-
-`reflectsTopic` is true when token overlap exists between:
-
-- URL slug/path tokens
-- title/H1 topic tokens
-
-Tokenization rules:
-
-- lowercase
-- non-alphanumeric characters stripped
-- split on whitespace and hyphen
-- token length must be at least `4`
-- some stop words are removed
-
-### 5.13 Readability
-
-Paragraphs are collected from:
-
-- `main p`
-- `article p`
-- fallback `p`
-
-Returned fields:
-
-- `paragraphCount`
-- `totalWords`
-- `averageParagraphWords`
-- `longParagraphs`
-- `contentDepth`
-
-Thresholds:
-
-- `High` if `totalWords >= 700`
-- `Medium` if `totalWords >= 250`
-- `Low` if `totalWords > 0`
-- `Very low` if `totalWords === 0`
-
-A long paragraph currently means `> 120 words`.
-
-## 6. SEO Score model
-
-The core score is the sum of seven section scores, each clamped to its own max:
+   - `scorePage(pageData)`
+   - `calculateRevenueRisk(audit.issues, pageData)` internally
+   - `getTopFixes(audit.issues, pageData)`
+   - `buildSerpPreview(pageData)`
+6. The UI renders the current-page report.
+
+Internal function names may still include `revenueRisk`; visible UI uses `Traffic Risk`.
+
+## DOM Signals Collected
+
+`content.js` collects only current-page data:
+
+- document title
+- meta description
+- canonical URL
+- robots / googlebot meta
+- H1-H6 counts and heading order
+- viewport meta
+- charset
+- HTML `lang`
+- image counts and missing alt counts
+- internal / external / placeholder link counts
+- JSON-LD blocks, parse validity, schema types
+- Open Graph / Twitter presence as secondary insights
+- URL length/path/query/topic signals
+- lightweight paragraph/readability signals
+- commercial-intent heuristic from URL/title/H1/body snippet
+
+It does not store full page HTML, crawl links, fetch linked pages, or send DOM data to a server.
+
+## SEO Score Formula
+
+The score is weighted and section-based, not a raw warning count:
 
 ```text
 SEO Score =
   Indexability +
   Metadata +
-  Structure +
-  Technical +
+  Headings +
+  Technical basics +
+  Schema +
   Images +
   Links +
-  Social
+  Secondary insights
 ```
 
-Then the total is clamped to `0..100`.
+Each section is clamped to its own maximum. The total is clamped to `0..100`.
 
-### 6.1 Section weights
+### Section Weights
 
 | Section | Max points |
 | --- | ---: |
 | Indexability | 25 |
-| Metadata | 25 |
-| Structure | 15 |
-| Technical | 15 |
+| Metadata | 20 |
+| Headings | 15 |
+| Technical basics | 10 |
+| Schema | 8 |
 | Images | 10 |
 | Links | 5 |
-| Social | 5 |
+| Secondary insights | 7 |
 
-Total max = `100`.
+### Grade Bands
 
-### 6.2 Score labels
+| Score | Grade |
+| ---: | --- |
+| 80-100 | Good |
+| 50-79 | Needs improvement |
+| 0-49 | Critical issues |
 
-- `Good` if score `>= 90`
-- `Needs improvement` if score `>= 70`
-- `Critical fixes` if score `< 70`
+### Indexability
 
-### 6.3 Indexability formula
+Starts at `25`.
 
-Start from `25`.
+Penalties:
 
-Subtract:
+- `-15` for `noindex`
+- `-4` for `nofollow`
+- `-3` for missing canonical
+- `-8` for invalid canonical
+- `-8` for canonical pointing to another URL
 
-- `-15` if `robots.noindex`
-- `-4` if `robots.nofollow`
-- `-3` if canonical is missing
-- `-8` if canonical exists but is invalid
-- `-8` if canonical exists and points to another URL
+### Metadata
 
-If none of the above conditions are hit, passed checks are shown instead.
+Starts at `20`.
 
-### 6.4 Metadata formula
+Penalties:
 
-Start from `25`.
+- `-12` for missing title
+- `-3` for title length outside `30..65`
+- `-10` for missing meta description
+- `-2` for meta description length outside `110..170`
 
-#### Title
+### Headings
 
-- `-12` if title is missing
-- `-3` if title exists but length is outside the good range
-- `0` otherwise
+Starts at `15`.
 
-Current good title range:
+Penalties:
 
-- `30..65` characters
-
-#### Meta description
-
-- `-10` if meta description is missing
-- `-2` if meta description exists but length is outside the good range
-- `0` otherwise
-
-Current good meta description range:
-
-- `110..170` characters
-
-### 6.5 Structure formula
-
-Start from `15`.
-
-Subtract:
-
-- `-10` if `H1` is missing
-- if multiple `H1`:
+- `-10` for missing H1
+- multiple H1:
   - `-8` if `H1 count >= 8`
   - `-7` if `H1 count >= 5`
   - `-5` if `H1 count > 1`
-- if heading levels are skipped:
-  - `-6` if `skipExamples.length >= 3`
+- skipped heading levels:
+  - `-6` if there are at least 3 skip examples
   - `-5` otherwise
 
-Additional cap:
+If an H1 exists, combined multiple-H1 and skipped-heading penalties are capped at `-10`.
 
-- if `H1` exists, max total penalty for `multiple H1 + skipped headings` is capped at `-10`
-- if `H1` is missing, the section can still drop to `0`
+### Technical Basics
 
-### 6.6 Technical formula
+Starts at `10`.
 
-Start from `15`.
+Penalties:
 
-Subtract:
+- `-4` for missing or weak viewport
+- `-2` for missing `lang`
+- `-2` for missing charset
 
-- `-4` if viewport is missing or not responsive
-- `-2` if `lang` is missing
-- `-2` if charset is missing
-- JSON-LD:
-  - `-5` if JSON-LD is invalid on a commercial page
-  - `-1` if JSON-LD is invalid on a non-commercial page
-  - `-5` if no valid JSON-LD/types are found on a commercial page
-  - `-1` if no valid JSON-LD/types are found on a non-commercial page
+### Schema
 
-### 6.7 Images formula
+Starts at `8`.
 
-Start from `10`.
+Penalties:
 
-If there are no meaningful images, the section gets a passed check instead of a penalty.
+- invalid JSON-LD:
+  - `-5` on commercial pages
+  - `-2` on non-commercial pages
+- no valid JSON-LD/schema types:
+  - `-4` on commercial pages
+  - `-2` on non-commercial pages
 
-Otherwise penalties depend on:
+### Images
+
+Starts at `10`.
+
+Meaningful images exclude detectable decorative/hidden images. Penalty is based on:
 
 ```text
 missingAltRatio = missingAlt / meaningfulTotal
 ```
 
-Current tiers:
+Tiers:
 
-- `ratio > 0.85` -> `-8`
-- `ratio > 0.60` -> `-7`
-- `ratio > 0.30` -> `-5`
-- `ratio > 0.05` -> `-3`
+- `> 0.85`: `-8`
+- `> 0.60`: `-7`
+- `> 0.30`: `-5`
+- `> 0.05`: `-3`
 - otherwise `0`
 
-### 6.8 Links formula
+### Links
 
-Start from `5`.
+Starts at `5`.
 
-Subtract:
+Penalties:
 
 - `-3` if placeholder links `> 3`
 - `-1` if placeholder links `>= 1`
 - `-2` if the page has links but zero internal links
 
-### 6.9 Social formula
+Links are intentionally not a major score driver.
 
-Start from `5`.
+### Secondary Insights
 
-Subtract:
+Starts at `7`.
 
-- `-1` if `og:title` is missing
-- `-1` if `og:description` is missing
-- `-2` if `og:image` is missing
-- `-1` if Twitter card basics are missing
+Penalties:
 
-Twitter basics currently mean:
+- `-1` for missing `og:title`
+- `-1` for missing `og:description`
+- `-2` for missing `og:image`
+- `-1` for missing Twitter card basics
 
-```text
-twitter:card exists AND (twitter:title OR twitter:description exists)
-```
+Social metadata stays secondary and does not create high `Traffic Risk`.
 
-## 7. Diagnostic info-only issues
+## Diagnostic Info-Only Issues
 
-The extension also generates a separate diagnostics layer that does **not** reduce the core SEO score.
+Some signals are shown as diagnostics but do not reduce the score:
 
-These issues are marked with:
+- long URL
+- deep path
+- URL/topic mismatch
+- missing contextual internal links
+- long paragraphs
+- low content depth on commercial pages
+- generic image filenames
+- images without explicit dimensions
+- generic anchor text
 
-- `infoOnly = true`
-- `scoreImpact = 0`
+These issues have `infoOnly = true` and are excluded from `Top 3 Fixes`.
 
-Current info-only checks:
+## Traffic Risk Rules
 
-- `url_length_long`
-- `url_path_deep`
-- `url_topic_mismatch`
-- `contextual_internal_links_missing`
-- `long_paragraphs_detected`
-- `content_depth_low`
-- `image_filenames_generic`
-- `image_dimensions_missing`
-- `generic_anchor_text`
+`Traffic Risk` is separate from the score.
 
-Current trigger rules:
+### High
 
-- `url_length_long` if URL length `> 115`
-- `url_path_deep` if path depth `> 3`
-- `url_topic_mismatch` if slug tokens exist but do not overlap with title/H1 topic tokens
-- `contextual_internal_links_missing` if:
-  - `contextualInternal === 0`
-  - `internal > 0`
-  - `readability.totalWords >= 250`
-- `long_paragraphs_detected` if `longParagraphs > 0`
-- `content_depth_low` if:
-  - `totalWords > 0`
-  - `totalWords < 200`
-  - commercial intent is detected
-- `image_filenames_generic` if at least one meaningful image filename looks generic
-- `image_dimensions_missing` if at least one meaningful image misses explicit width/height
-- `generic_anchor_text` if at least one generic anchor is found
+High risk is reserved for strong current-page signals:
 
-## 8. Revenue Risk model
+- `noindex`
+- missing title
+- invalid canonical
+- canonical pointing to another URL
+- missing H1 only when combined with other major issues
+- major mixed indexability/metadata clusters
 
-`Revenue Risk` is separate from the score.
+### Medium
 
-It returns:
+Medium risk covers issues like:
 
-- `level`
-- `category`
-- `reason`
-- `topRiskIssueId`
+- missing meta description
+- weak title/meta length
+- missing H1 without a major cluster
+- multiple H1
+- weak heading structure
+- invalid or missing useful schema
+- many images without alt
+- missing viewport
+- notable link/placeholder issues
 
-This is not a money model. It is a heuristic about visibility / click / clarity risk.
+### Low
 
-### 8.1 High risk rules
+Low risk covers minor/supporting signals:
 
-The extension returns `High` immediately if any of these issues exist:
+- missing Open Graph
+- missing Twitter tags
+- missing `lang`
+- missing charset
+- social-only metadata
+- minor link count insights
 
-- `noindex` -> category `Indexability`
-- `canonical_other_url` -> category `Indexability`
-- `canonical_invalid` -> category `Indexability`
-- `title_missing` -> category `Snippet & CTR`
-- `h1_missing` -> category `Content Clarity`
+## Top 3 Fixes
 
-### 8.2 Commercial meta-description cluster rule
+Top fixes are generated from unresolved, non-info-only issues.
 
-If the page is commercial and `meta_description_missing` exists:
+Each fix includes:
 
-- return `High / Snippet & CTR` only if the unresolved issue cluster contains at least `2` issues from:
-  - `meta_description_missing`
-  - `h1_multiple`
-  - `headings_skipped`
-  - `images_missing_alt_high`
-  - `jsonld_missing_or_invalid`
-- otherwise return:
-  - `Medium / Snippet & CTR`
-
-### 8.3 Mixed Signals high-risk rule
-
-If unresolved issues in `indexability` and `metadata` together:
-
-- have length `>= 2`
-- and at least one of them is high severity or one of:
-  - `noindex`
-  - `canonical_other_url`
-  - `canonical_invalid`
-  - `title_missing`
-  - `h1_missing`
-
-then the extension returns:
-
-- `High / Mixed Signals`
-
-### 8.4 Medium risk rules
-
-If no earlier high-risk rule matched, the first unresolved issue from this list creates `Medium / Quality Signals`:
-
-- `title_length`
-- `meta_description_missing`
-- `meta_description_length`
-- `h1_multiple`
-- `headings_skipped`
-- `images_missing_alt_medium`
-- `images_missing_alt_high`
-- `viewport_missing_or_weak`
-- `jsonld_missing_or_invalid`
-- `jsonld_invalid`
-- `placeholder_links_some`
-- `placeholder_links_many`
-- `weak_internal_link_signal`
-
-There is also a special medium rule:
-
-- if commercial intent is detected
-- and `readability.contentDepth === "Low"`
-- and `links.contextualInternal === 0`
-
-then return:
-
-- `Medium / Content Clarity`
-
-### 8.5 Low risk rules
-
-If no high/medium rule matched, the first unresolved issue from this list creates `Low / Minor Signals`:
-
-- `canonical_missing`
-- `lang_missing`
-- `charset_missing`
-- `og_title_missing`
-- `og_description_missing`
-- `og_image_missing`
-- `twitter_basics_missing`
-
-If none of the above matched:
-
-- `Low / No material risk`
-
-## 9. Top 3 Fixes formula
-
-`Top 3 Fixes` are derived from unresolved issues that are **not** info-only.
-
-Filtering:
-
-```text
-include issue if:
-  !issue.passed && !issue.infoOnly
-```
+- `Issue`
+- `Evidence`
+- `Why it matters`
+- `Fix`
+- `Impact`
+- `Confidence`
 
 Priority formula:
 
 ```text
 priority =
-  (severityWeight * 10) +
+  severityWeight * 10 +
   scoreImpact +
   commercialIntentBonus
 ```
@@ -745,99 +330,47 @@ Severity weights:
 
 Commercial bonus:
 
-- `+5` only when:
-  - commercial intent is detected
-  - and issue section is `metadata` or `indexability`
+- `+5` for metadata/indexability issues on commercial pages
 
-Sorting:
+Low-confidence issues are excluded from Top Fixes so secondary/social-only findings do not outrank high-confidence SEO issues.
 
-1. descending by `priority`
-2. descending by `scoreImpact`
+## SERP Preview
 
-Then the first `3` issues are kept.
+The preview uses only:
 
-## 10. SERP preview logic
+- detected title
+- detected meta description
+- current URL without hash
 
-The SERP preview is intentionally simple:
+If title or description is missing, it shows a clear missing state. It does not pretend to know the exact Google snippet.
 
-- title = actual title or `Missing title`
-- URL = current URL without hash
-- description = actual meta description or `Missing meta description`
+## UI
 
-No pixel-based truncation is simulated in the current implementation.
+Popup above the fold is score-first:
 
-## 11. UI structure
+1. product name and current URL context
+2. SEO Score
+3. Grade
+4. Traffic Risk
+5. Top 3 Fixes
+6. SERP Preview
+7. Section Breakdown
 
-### 11.1 Popup header
+Report tabs:
 
-Shows:
+- `Overview`
+- `Page`
+- `Links`
+- `Content`
+- `Secondary`
 
-- extension name
-- detected hostname
-- `Recheck` button
+## Export
 
-### 11.2 Primary summary cards
+### Links CSV
 
-The popup always shows:
+Generated locally with `Blob`.
 
-- score card
-- revenue risk card
-
-### 11.3 Report tabs
-
-#### Overview
-
-Shows:
-
-- Top 3 Fixes
-- SERP Preview
-- section summary
-- raw values report
-
-#### Page
-
-Shows:
-
-- document-level signals
-- indexability, metadata, and non-JSON-LD technical issues
-
-#### Links
-
-Shows:
-
-- link inventory table
-- link counts
-- CSV export button
-- link issues
-
-#### Content
-
-Shows:
-
-- heading counts
-- skipped levels
-- missing alt summary
-- content depth
-- long paragraph count
-- generic image filename count
-- missing dimension count
-- headings table
-- missing alt samples table
-- content issues
-
-#### Social
-
-Shows:
-
-- structured data summary
-- Open Graph / Twitter data
-- social/schema issues
-
-## 12. Export behavior
-
-### 12.1 CSV export
-
-The links table can be exported as CSV with these columns:
+Columns:
 
 - `Anchor text`
 - `Type`
@@ -846,117 +379,105 @@ The links table can be exported as CSV with these columns:
 - `URL`
 - `Rel`
 
-The CSV is generated locally via `Blob`.
+### PDF
 
-### 12.2 PDF export
-
-The popup export button does this:
-
-1. serializes current audit data
-2. URL-encodes it
-3. opens:
+The popup opens:
 
 ```text
-report.html#data=<payload>
+report.html#data=<encoded current-page payload>
 ```
 
-4. `report.js` parses the hash
-5. hydrates a dedicated printable page
-6. the user uses Chrome's print dialog to save as PDF
+`report.js` hydrates a printable local report. The user saves through Chrome's print dialog.
 
-The printable report includes:
+## Error States
 
-- summary
-- quick signals
-- top fixes
-- SERP preview
-- section breakdown
-- page evidence
-- content evidence
-- links evidence
-- structured/social evidence
-- raw data
+The extension handles:
 
-## 13. Popup states
+- normal HTML pages
+- `chrome://` pages
+- Chrome Web Store pages
+- browser settings pages
+- extension pages
+- PDF/image/empty tabs
+- injection failures
+- pages that need refresh after extension install
 
-The popup can render:
+Restricted-page message:
 
-- `loading`
-- `restricted`
-- `unsupported`
-- `error`
-- `success`
+```text
+Chrome does not allow extensions to inspect this page. Open a regular website page and try again.
+```
 
-## 14. Installation
+General refresh hint:
 
-1. Open `chrome://extensions`
-2. Enable `Developer mode`
-3. Click `Load unpacked`
-4. Select the `seo-score-checker` folder
-5. Open a normal page and click the extension icon
+```text
+Refresh the page and run the check again.
+```
 
-Important: load the actual extension folder that contains:
+## Manual QA Checklist
 
-- `manifest.json`
-- `popup.html`
-- `popup.js`
+Check:
 
-## 15. Manual test plan
+- normal page with good SEO
+- page with no title
+- page with no meta description
+- page with noindex
+- page with canonical to another URL
+- page with no H1
+- page with multiple H1s
+- page with invalid JSON-LD
+- page with many images without alt
+- page with only social metadata missing
+- `chrome://` page
+- Chrome Web Store page
+- PDF tab
+- image tab
+- empty tab
 
-Recommended test pages:
+Expected:
 
-1. normal commercial landing page
-2. normal article page
-3. page without meta description
-4. page with `noindex`
-5. page with canonical to another URL
-6. page without `H1`
-7. page with many `H1`
-8. page with invalid JSON-LD
-9. page with many missing image alts
-10. page without responsive viewport
-11. page with good OG/Twitter tags
-12. `chrome://extensions`
-13. Chrome Web Store page
-14. image/PDF/document tabs without normal HTML body
-15. localhost page
+- no crashes
+- clear error on restricted pages
+- score changes are explainable
+- Top 3 Fixes include evidence
+- Traffic Risk is not shown as a revenue prediction
+- social-only issues stay low/secondary
+- no external network requests for analysis
+- no broad permissions
 
-Expected behavior:
-
-- `noindex` should create `High / Indexability`
-- missing title should create `High / Snippet & CTR`
-- missing `H1` should create `High / Content Clarity`
-- social-only issues should not create high revenue risk
-- `Top 3 Fixes` should not include info-only diagnostics
-- PDF export should open a dedicated report page
-- links CSV should download locally
-- restricted pages should show restricted state
-
-## 16. Privacy
-
-The extension is local-only:
+## Privacy
 
 - no external API calls
 - no analytics
 - no telemetry
 - no remote scripts
 - no remote logging
-- no storage of analyzed page content
+- no page content sent outside the browser
+- no full page HTML stored
 
-## 17. Known limitations
+## Non-Goals
 
-This tool intentionally does **not** do:
+Do not implement:
 
-- HTTP header inspection
-- `robots.txt` fetch
-- sitemap checks
-- Core Web Vitals / Lighthouse / PageSpeed metrics
-- full-site crawling
-- broken-link validation over the network
-- redirect chain analysis
-- index coverage verification in search engines
+- full website/domain audit
+- crawling
+- sitemap parsing
+- PageSpeed
+- Core Web Vitals
+- backlink checks
+- keyword research
 - rank tracking
-- keyword database integration
-- revenue forecasting
+- competitor analysis
+- AI recommendations
+- remote API scoring
+- account system
+- payment system
+- analytics
+- onboarding
+- localization
 
-It only evaluates what can be reasonably inferred from the currently loaded DOM and page-local metadata.
+The goal is:
+
+```text
+SEO Score Checker = current-page SEO score + explainable top fixes
+```

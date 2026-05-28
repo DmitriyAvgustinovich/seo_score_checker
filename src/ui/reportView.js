@@ -1,5 +1,6 @@
 import { escapeHtml } from "./escapeHtml.js";
 import {
+  SECTION_LABELS,
   renderDataReport,
   renderSectionSummary
 } from "./renderSections.js";
@@ -67,18 +68,23 @@ function renderIssueCards(title, issues, emptyState) {
           issues.length
             ? issues
                 .map(
-                  (issue) => `
-                    <article class="issue issue--${issue.severity}">
-                      <div class="fix-row">
-                        <h3 class="fix-title">${escapeHtml(issue.title)}</h3>
-                        <span class="impact-badge impact-badge--${issue.severity}">${escapeHtml(issue.severity)}</span>
-                      </div>
-                      <p class="issue__text">${escapeHtml(issue.recommendation)}</p>
-                      <div class="meta-row">
-                        <span class="muted">Score impact: -${issue.scoreImpact}</span>
-                      </div>
-                    </article>
-                  `
+                  (issue) => {
+                    const scoreMeta = issue.infoOnly
+                      ? '<span class="muted">Diagnostic insight, no score loss</span>'
+                      : `<span class="muted">Score impact: -${issue.scoreImpact}</span>`;
+                    return `
+                      <article class="issue issue--${issue.severity}">
+                        <div class="fix-row">
+                          <h3 class="fix-title">${escapeHtml(issue.title)}</h3>
+                          <span class="impact-badge impact-badge--${issue.severity}">${escapeHtml(issue.infoOnly ? "Insight" : issue.severity)}</span>
+                        </div>
+                        <p class="issue__text">${escapeHtml(issue.recommendation)}</p>
+                        <div class="meta-row">
+                          ${scoreMeta}
+                        </div>
+                      </article>
+                    `;
+                  }
                 )
                 .join("")
             : `<article class="passed-item">${escapeHtml(emptyState)}</article>`
@@ -96,7 +102,7 @@ function getStructuredIssues(data) {
   return data.audit.issues.filter(
     (issue) =>
       !issue.passed &&
-      (issue.section === "social" || issue.id === "jsonld_missing_or_invalid" || issue.id === "jsonld_invalid")
+      (issue.section === "secondary" || issue.section === "schema" || issue.id === "jsonld_missing_or_invalid" || issue.id === "jsonld_invalid")
   );
 }
 
@@ -142,7 +148,7 @@ function renderPageTab(data) {
         </div>
         ${renderTable(["Field", "Value"], rows)}
       </section>
-      ${renderIssueCards("Indexability, metadata, and technical issues", pageIssues, "No page-level issues found.")}
+      ${renderIssueCards("Indexability, metadata, and technical basics", pageIssues, "No page-level issues found.")}
     </div>
   `;
 }
@@ -246,7 +252,7 @@ function renderContentTab(data) {
             : '<div class="passed-item">No missing alt samples.</div>'
         }
       </section>
-      ${renderIssueCards("Content issues", getSectionIssues(data, ["structure", "images"]), "No content issues found.")}
+      ${renderIssueCards("Heading and image issues", getSectionIssues(data, ["headings", "images"]), "No content issues found.")}
     </div>
   `;
 }
@@ -274,8 +280,8 @@ function renderSocialTab(data) {
       <section class="section-card report-group">
         <div class="section-row">
           <div>
-            <div class="eyebrow">Social</div>
-            <h2 class="section-title">Schema and social preview data</h2>
+            <div class="eyebrow">Schema and secondary</div>
+            <h2 class="section-title">Schema and secondary preview signals</h2>
           </div>
         </div>
         <div class="section-subtitle">Structured data</div>
@@ -283,7 +289,7 @@ function renderSocialTab(data) {
         <div class="section-subtitle">Open Graph and Twitter</div>
         ${renderTable(["Field", "Value"], socialRows, { compact: true })}
       </section>
-      ${renderIssueCards("Structured data and social issues", getStructuredIssues(data), "No structured or social issues found.")}
+      ${renderIssueCards("Schema and secondary issues", getStructuredIssues(data), "No schema or secondary issues found.")}
     </div>
   `;
 }
@@ -294,7 +300,7 @@ function renderTabNav(activeTab) {
     ["page", "Page"],
     ["links", "Links"],
     ["content", "Content"],
-    ["social", "Social"]
+    ["social", "Secondary"]
   ];
 
   return `
@@ -355,8 +361,8 @@ export function renderReportView(data, activeTab) {
     <section class="report-card">
       <div class="report-card__header">
         <div>
-          <div class="eyebrow">Full Report</div>
-          <h2 class="section-title">Detailed SEO audit</h2>
+          <div class="eyebrow">Current-page report</div>
+          <h2 class="section-title">Current-page SEO score and explainable top fixes</h2>
         </div>
         <button type="button" class="button button--secondary" data-action="export-pdf">Export PDF</button>
       </div>
@@ -619,14 +625,15 @@ export function buildPrintableReport(data) {
   const sectionCards = Object.entries(data.audit.sections)
     .map(([key, section]) => {
       const progress = section.maxScore > 0 ? Math.round((section.score / section.maxScore) * 100) : 0;
-      const issues = section.issues.filter((item) => !item.passed);
+      const issues = section.issues.filter((item) => !item.passed && !item.infoOnly);
+      const insights = section.issues.filter((item) => !item.passed && item.infoOnly);
       const passedChecks = section.issues.filter((item) => item.passed);
 
       return `
         <section class="report-panel">
           <div class="report-panel__header">
             <div>
-              <div class="eyebrow">${escapeHtml(key)}</div>
+              <div class="eyebrow">${escapeHtml(SECTION_LABELS[key] || key)}</div>
               <h3 class="panel-title">${section.score}/${section.maxScore}</h3>
             </div>
             <div class="pill">${progress}%</div>
@@ -634,6 +641,7 @@ export function buildPrintableReport(data) {
           <div class="progress-track"><div class="progress-bar" style="width:${progress}%;"></div></div>
           <div class="panel-meta">
             <span>${issues.length} issues</span>
+            ${insights.length ? `<span>${insights.length} insights</span>` : ""}
             <span>${passedChecks.length} passed</span>
           </div>
           <div class="report-list">
@@ -651,6 +659,21 @@ export function buildPrintableReport(data) {
                     )
                     .join("")
                 : '<div class="report-item"><div class="report-item__title">No unresolved issues.</div></div>'
+            }
+            ${
+              insights.length
+                ? insights
+                    .map(
+                      (item) => `
+                        <div class="report-item">
+                          <div class="report-item__title">Insight: ${escapeHtml(item.title)}</div>
+                          <div class="report-item__meta">No score loss</div>
+                          <div>${escapeHtml(item.recommendation)}</div>
+                        </div>
+                      `
+                    )
+                    .join("")
+                : ""
             }
           </div>
         </section>
@@ -706,10 +729,10 @@ export function buildPrintableReport(data) {
     <header class="page-header">
       <div class="page-header__meta">
         <div class="eyebrow">SEO Score Checker</div>
-        <h1 class="title">SEO Audit Report</h1>
+        <h1 class="title">SEO Score Checker Report</h1>
         <div class="muted">${escapeHtml(data.pageData.hostname || "Unknown host")}</div>
         <div class="muted">${escapeHtml(data.pageData.url || "")}</div>
-        <div class="print-note">Review the report, then use Print / Save PDF to export it.</div>
+        <div class="print-note">This extension checks one open URL at a time. It does not crawl an entire domain.</div>
       </div>
       <div class="page-actions">
         <button type="button" class="action-button action-button--primary" id="print-report">Print / Save PDF</button>
@@ -733,10 +756,11 @@ export function buildPrintableReport(data) {
                 <div class="progress-track"><div class="progress-bar" style="width:${data.audit.score}%;"></div></div>
               </div>
               <div class="report-kpi">
-                <div class="eyebrow">Revenue Risk</div>
+                <div class="eyebrow">Traffic Risk</div>
                 <div class="report-risk-level">${escapeHtml(data.risk.level)}</div>
                 <div class="muted">Type: ${escapeHtml(data.risk.category || "No material risk")}</div>
                 <div class="report-kpi__subtitle">${escapeHtml(data.risk.reason)}</div>
+                <div class="muted">Traffic Risk is a heuristic priority label for organic visibility, snippets, clicks, and common publishing issues. It is not a revenue estimate or ROI forecast.</div>
               </div>
             </div>
           </section>
@@ -755,14 +779,16 @@ export function buildPrintableReport(data) {
                       .map(
                         (issue) => `
                           <div class="item">
-                            <h3>${escapeHtml(issue.title)}</h3>
-                            <div class="muted">Impact: ${escapeHtml(issue.severity)} | Score impact: -${issue.scoreImpact}</div>
-                            <div>${escapeHtml(issue.recommendation)}</div>
+                            <h3>Issue: ${escapeHtml(issue.title)}</h3>
+                            <div><strong>Evidence:</strong> ${escapeHtml(issue.evidence || "Detected directly from current-page signals.")}</div>
+                            <div><strong>Why it matters:</strong> ${escapeHtml(issue.whyItMatters || "")}</div>
+                            <div><strong>Fix:</strong> ${escapeHtml(issue.fix || issue.recommendation)}</div>
+                            <div class="muted">Impact: -${issue.scoreImpact} points | Confidence: ${escapeHtml(issue.confidence || "Medium")}</div>
                           </div>
                         `
                       )
                       .join("")
-                  : '<div class="item"><h3>No urgent fixes</h3><div>Nothing high-priority needs attention right now.</div></div>'
+                  : '<div class="item"><h3>No major issues</h3><div>No critical fixes found in this quick current-page check. No more high-priority fixes found in this quick current-page check.</div></div>'
               }
             </div>
           </section>
@@ -799,7 +825,7 @@ export function buildPrintableReport(data) {
           </section>
 
           <section class="card">
-            <h2 class="section-title">Structured and Social Evidence</h2>
+            <h2 class="section-title">Schema and Secondary Evidence</h2>
             ${renderTable(["Field", "Value"], socialRows, { compact: true })}
           </section>
 

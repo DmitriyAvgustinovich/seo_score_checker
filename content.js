@@ -404,7 +404,20 @@
       "plan",
       "subscribe",
       "order",
-      "quote"
+      "quote",
+      "купить",
+      "продать",
+      "заказать",
+      "услуги",
+      "сервис",
+      "акции",
+      "кредит",
+      "лизинг",
+      "страхование",
+      "trade-in",
+      "тест-драйв",
+      "автомобиль",
+      "авто"
     ];
 
     const bodyText = document.body ? (document.body.innerText || "").slice(0, 3000) : "";

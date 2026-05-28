@@ -124,13 +124,13 @@ function scoreMetadata(pageData) {
 
 function scoreStructure(pageData) {
   const issues = [];
-  let score = SECTION_WEIGHTS.structure;
+  let score = SECTION_WEIGHTS.headings;
 
   if (pageData.h1.count === 0) {
     issues.push(buildIssue("h1_missing"));
     score -= 10;
   } else {
-    issues.push(buildPassedCheck("h1_exists", "structure", "H1 tag found"));
+    issues.push(buildPassedCheck("h1_exists", "headings", "H1 tag found"));
   }
 
   if (pageData.h1.count > 1) {
@@ -138,7 +138,7 @@ function scoreStructure(pageData) {
     issues.push(buildIssue("h1_multiple", { scoreImpact: h1Penalty }));
     score -= h1Penalty;
   } else {
-    issues.push(buildPassedCheck("h1_single", "structure", "Single H1 tag used"));
+    issues.push(buildPassedCheck("h1_single", "headings", "Single H1 tag used"));
   }
 
   if (pageData.headings.hasSkippedLevels) {
@@ -146,20 +146,20 @@ function scoreStructure(pageData) {
     issues.push(buildIssue("headings_skipped", { scoreImpact: skipPenalty }));
     score -= skipPenalty;
   } else {
-    issues.push(buildPassedCheck("heading_order_good", "structure", "Heading order looks consistent"));
+    issues.push(buildPassedCheck("heading_order_good", "headings", "Heading order looks consistent"));
   }
 
   const maxStructurePenalty = pageData.h1.count === 0 ? 15 : 10;
-  score = Math.max(SECTION_WEIGHTS.structure - maxStructurePenalty, score);
+  score = Math.max(SECTION_WEIGHTS.headings - maxStructurePenalty, score);
 
   return {
-    score: clamp(score, 0, SECTION_WEIGHTS.structure),
-    maxScore: SECTION_WEIGHTS.structure,
+    score: clamp(score, 0, SECTION_WEIGHTS.headings),
+    maxScore: SECTION_WEIGHTS.headings,
     issues
   };
 }
 
-function scoreTechnical(pageData) {
+function scoreTechnicalBasics(pageData) {
   const issues = [];
   let score = SECTION_WEIGHTS.technical;
 
@@ -184,21 +184,32 @@ function scoreTechnical(pageData) {
     issues.push(buildPassedCheck("charset_ok", "technical", "Character set detected"));
   }
 
-  if (pageData.jsonLd.invalidCount > 0) {
-    const jsonLdPenalty = pageData.commercialIntent.detected ? 5 : 1;
-    issues.push(buildIssue("jsonld_invalid", { scoreImpact: jsonLdPenalty }));
-    score -= jsonLdPenalty;
-  } else if (pageData.jsonLd.validCount === 0 || pageData.jsonLd.types.length === 0) {
-    const jsonLdPenalty = pageData.commercialIntent.detected ? 5 : 1;
-    issues.push(buildIssue("jsonld_missing_or_invalid", { scoreImpact: jsonLdPenalty }));
-    score -= jsonLdPenalty;
-  } else {
-    issues.push(buildPassedCheck("jsonld_ok", "technical", "Valid JSON-LD schema detected"));
-  }
-
   return {
     score: clamp(score, 0, SECTION_WEIGHTS.technical),
     maxScore: SECTION_WEIGHTS.technical,
+    issues
+  };
+}
+
+function scoreSchema(pageData) {
+  const issues = [];
+  let score = SECTION_WEIGHTS.schema;
+
+  if (pageData.jsonLd.invalidCount > 0) {
+    const jsonLdPenalty = pageData.commercialIntent.detected ? 5 : 2;
+    issues.push(buildIssue("jsonld_invalid", { section: "schema", scoreImpact: jsonLdPenalty }));
+    score -= jsonLdPenalty;
+  } else if (pageData.jsonLd.validCount === 0 || pageData.jsonLd.types.length === 0) {
+    const jsonLdPenalty = pageData.commercialIntent.detected ? 4 : 2;
+    issues.push(buildIssue("jsonld_missing_or_invalid", { section: "schema", scoreImpact: jsonLdPenalty }));
+    score -= jsonLdPenalty;
+  } else {
+    issues.push(buildPassedCheck("jsonld_ok", "schema", "Valid JSON-LD schema detected"));
+  }
+
+  return {
+    score: clamp(score, 0, SECTION_WEIGHTS.schema),
+    maxScore: SECTION_WEIGHTS.schema,
     issues
   };
 }
@@ -294,29 +305,29 @@ function scoreLinks(pageData) {
   };
 }
 
-function scoreSocial(pageData) {
+function scoreSecondary(pageData) {
   const issues = [];
-  let score = SECTION_WEIGHTS.social;
+  let score = SECTION_WEIGHTS.secondary;
 
   if (!pageData.openGraph.title) {
     issues.push(buildIssue("og_title_missing"));
     score -= 1;
   } else {
-    issues.push(buildPassedCheck("og_title_ok", "social", "Open Graph title found"));
+    issues.push(buildPassedCheck("og_title_ok", "secondary", "Open Graph title found"));
   }
 
   if (!pageData.openGraph.description) {
     issues.push(buildIssue("og_description_missing"));
     score -= 1;
   } else {
-    issues.push(buildPassedCheck("og_description_ok", "social", "Open Graph description found"));
+    issues.push(buildPassedCheck("og_description_ok", "secondary", "Open Graph description found"));
   }
 
   if (!pageData.openGraph.image) {
     issues.push(buildIssue("og_image_missing"));
     score -= 2;
   } else {
-    issues.push(buildPassedCheck("og_image_ok", "social", "Open Graph image found"));
+    issues.push(buildPassedCheck("og_image_ok", "secondary", "Open Graph image found"));
   }
 
   const hasTwitterBasics = Boolean(pageData.twitter.card && (pageData.twitter.title || pageData.twitter.description));
@@ -325,12 +336,12 @@ function scoreSocial(pageData) {
     issues.push(buildIssue("twitter_basics_missing"));
     score -= 1;
   } else {
-    issues.push(buildPassedCheck("twitter_basics_ok", "social", "Twitter card basics found"));
+    issues.push(buildPassedCheck("twitter_basics_ok", "secondary", "Twitter card basics found"));
   }
 
   return {
-    score: clamp(score, 0, SECTION_WEIGHTS.social),
-    maxScore: SECTION_WEIGHTS.social,
+    score: clamp(score, 0, SECTION_WEIGHTS.secondary),
+    maxScore: SECTION_WEIGHTS.secondary,
     issues
   };
 }
@@ -344,18 +355,19 @@ function getScoreLabel(score) {
     return "Needs improvement";
   }
 
-  return "Critical fixes";
+  return SCORE_LABELS.criticalLabel;
 }
 
 export function scorePage(pageData) {
   const sections = {
     indexability: scoreIndexability(pageData),
     metadata: scoreMetadata(pageData),
-    structure: scoreStructure(pageData),
-    technical: scoreTechnical(pageData),
+    headings: scoreStructure(pageData),
+    technical: scoreTechnicalBasics(pageData),
+    schema: scoreSchema(pageData),
     images: scoreImages(pageData),
     links: scoreLinks(pageData),
-    social: scoreSocial(pageData)
+    secondary: scoreSecondary(pageData)
   };
 
   const totalScore = clamp(
@@ -415,7 +427,7 @@ export function scorePage(pageData) {
     infoIssues.push(
       buildInfoIssue(
         "long_paragraphs_detected",
-        "structure",
+        "headings",
         "Some paragraphs are very long",
         "Break long text blocks into shorter paragraphs for easier reading."
       )
@@ -426,7 +438,7 @@ export function scorePage(pageData) {
     infoIssues.push(
       buildInfoIssue(
         "content_depth_low",
-        "structure",
+        "headings",
         "Content depth looks light for a commercial page",
         "Consider adding clearer supporting content that answers key user questions."
       )

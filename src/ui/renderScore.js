@@ -22,7 +22,7 @@ export function renderScore(audit) {
       <div class="score-row">
         <div>
           <div class="score-number">${audit.score}</div>
-          <div class="score-label">${safeLabel}</div>
+          <div class="score-label">Grade: ${safeLabel}</div>
         </div>
         <span class="${getBadgeClass(audit.scoreLabel)}">${safeLabel}</span>
       </div>

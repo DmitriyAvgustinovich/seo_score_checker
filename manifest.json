@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "SEO Score Checker",
   "version": "1.0.0",
-  "description": "Check any page's SEO score, revenue risk, and top fixes in one click.",
+  "description": "Check the open URL with SEO Score Checker: SEO score, SERP preview, meta tags, Traffic Risk, and top fixes.",
   "permissions": ["activeTab", "scripting"],
   "action": {
     "default_title": "Check SEO Score",

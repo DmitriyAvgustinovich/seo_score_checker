@@ -51,7 +51,7 @@ const ISSUE_CATALOG = {
     section: "metadata",
     severity: "medium",
     title: "Title length needs improvement",
-    recommendation: "Keep the title concise and descriptive, ideally around 30 to 60 characters.",
+    recommendation: "Keep the title concise and descriptive, ideally around 30 to 65 characters.",
     scoreImpact: 5,
     revenueRisk: "medium"
   },
@@ -67,12 +67,12 @@ const ISSUE_CATALOG = {
     section: "metadata",
     severity: "medium",
     title: "Meta description length needs improvement",
-    recommendation: "Keep the meta description informative and close to 120 to 160 characters.",
+    recommendation: "Keep the meta description informative and close to 110 to 170 characters.",
     scoreImpact: 4,
     revenueRisk: "medium"
   },
   h1_missing: {
-    section: "structure",
+    section: "headings",
     severity: "high",
     title: "H1 is missing",
     recommendation: "Add one descriptive H1 that matches the page topic and primary intent.",
@@ -80,7 +80,7 @@ const ISSUE_CATALOG = {
     revenueRisk: "high"
   },
   h1_multiple: {
-    section: "structure",
+    section: "headings",
     severity: "medium",
     title: "Multiple H1 tags found",
     recommendation: "Use a single clear H1 and demote supporting headings to lower levels.",
@@ -88,7 +88,7 @@ const ISSUE_CATALOG = {
     revenueRisk: "medium"
   },
   headings_skipped: {
-    section: "structure",
+    section: "headings",
     severity: "medium",
     title: "Heading levels are skipped",
     recommendation: "Use headings in a logical order to improve document structure.",
@@ -120,7 +120,7 @@ const ISSUE_CATALOG = {
     revenueRisk: "low"
   },
   jsonld_missing_or_invalid: {
-    section: "technical",
+    section: "schema",
     severity: "medium",
     title: "No valid JSON-LD schema found",
     recommendation: "Add valid JSON-LD structured data where it makes sense for this page type.",
@@ -128,7 +128,7 @@ const ISSUE_CATALOG = {
     revenueRisk: "medium"
   },
   jsonld_invalid: {
-    section: "technical",
+    section: "schema",
     severity: "medium",
     title: "Invalid JSON-LD detected",
     recommendation: "Fix JSON-LD syntax errors so schema markup can be parsed reliably.",
@@ -176,7 +176,7 @@ const ISSUE_CATALOG = {
     revenueRisk: "medium"
   },
   og_title_missing: {
-    section: "social",
+    section: "secondary",
     severity: "low",
     title: "Open Graph title is missing",
     recommendation: "Add og:title to improve social sharing previews.",
@@ -184,7 +184,7 @@ const ISSUE_CATALOG = {
     revenueRisk: "low"
   },
   og_description_missing: {
-    section: "social",
+    section: "secondary",
     severity: "low",
     title: "Open Graph description is missing",
     recommendation: "Add og:description to improve social sharing previews.",
@@ -192,7 +192,7 @@ const ISSUE_CATALOG = {
     revenueRisk: "low"
   },
   og_image_missing: {
-    section: "social",
+    section: "secondary",
     severity: "low",
     title: "Open Graph image is missing",
     recommendation: "Add og:image so shared links have a clear preview image.",
@@ -200,7 +200,7 @@ const ISSUE_CATALOG = {
     revenueRisk: "low"
   },
   twitter_basics_missing: {
-    section: "social",
+    section: "secondary",
     severity: "low",
     title: "Twitter card basics are missing",
     recommendation: "Add basic Twitter card tags for richer shared previews.",

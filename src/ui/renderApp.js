@@ -10,6 +10,7 @@ function renderHeader(hostname, isChecking) {
       <div>
         <div class="eyebrow">Extension</div>
         <h1 class="header__title">SEO Score Checker</h1>
+        <div class="muted">Current-page SEO score and explainable top fixes.</div>
         <span class="hostname">${escapeHtml(hostname || "Unknown host")}</span>
       </div>
       <button type="button" class="button" data-action="recheck" ${isChecking ? "disabled" : ""}>Recheck</button>

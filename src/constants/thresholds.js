@@ -13,6 +13,7 @@ export const META_DESCRIPTION_THRESHOLDS = {
 };
 
 export const SCORE_LABELS = {
-  goodMin: 90,
-  needsImprovementMin: 70
+  goodMin: 80,
+  needsImprovementMin: 50,
+  criticalLabel: "Critical issues"
 };
