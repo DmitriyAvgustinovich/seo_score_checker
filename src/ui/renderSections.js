@@ -1,4 +1,6 @@
 import { escapeHtml } from "./escapeHtml.js";
+import { renderHelpLabel, renderHelpTip } from "./helpText.js";
+import { renderInteractiveValue } from "./renderInteractiveValue.js";
 
 export const SECTION_LABELS = {
   indexability: "Indexability",
@@ -21,13 +23,13 @@ function renderIssueCard(issue) {
   const badgeLabel = issue.infoOnly ? "Insight" : formatSeverityLabel(issue.severity);
   const scoreMeta = issue.infoOnly
     ? '<span class="muted">Diagnostic insight, no score loss</span>'
-    : `<span class="muted">Score impact: -${issue.scoreImpact}</span>`;
+    : `<span class="impact-badge impact-badge--${issue.severity}">Impact: -${issue.scoreImpact} points ${renderHelpTip("Impact")}</span>`;
 
   return `
     <article class="issue issue--${issue.severity}">
       <div class="fix-row">
         <h3 class="fix-title">${escapeHtml(issue.title)}</h3>
-        <span class="impact-badge impact-badge--${issue.severity}">${escapeHtml(badgeLabel)}</span>
+        <span class="impact-badge impact-badge--${issue.severity}">${escapeHtml(badgeLabel)} ${renderHelpTip("Severity")}</span>
       </div>
       <p class="issue__text">${escapeHtml(issue.recommendation)}</p>
       <div class="meta-row">
@@ -41,27 +43,11 @@ function renderPassedCard(item) {
   return `<article class="passed-item">${escapeHtml(item.title)}</article>`;
 }
 
-function formatValue(value) {
-  if (Array.isArray(value)) {
-    return value.length ? value.join(", ") : "(none)";
-  }
-
-  if (typeof value === "boolean") {
-    return value ? "Yes" : "No";
-  }
-
-  if (value === null || value === undefined || value === "") {
-    return "(missing)";
-  }
-
-  return String(value);
-}
-
 function renderValueRow(label, value) {
   return `
     <div class="value-row">
-      <div class="value-label">${escapeHtml(label)}</div>
-      <div class="value-value">${escapeHtml(formatValue(value))}</div>
+      <div class="value-label">${renderHelpLabel(label)}</div>
+      <div class="value-value">${renderInteractiveValue(value)}</div>
     </div>
   `;
 }
@@ -177,18 +163,18 @@ export function renderSectionSummary(audit) {
         <section class="section-card section-summary-card">
           <div class="section-row">
             <div>
-              <div class="eyebrow">${SECTION_LABELS[sectionKey]}</div>
-              <h2 class="section-title">${section.score}/${section.maxScore}</h2>
+              <div class="eyebrow">${renderHelpLabel(SECTION_LABELS[sectionKey])}</div>
+              <h2 class="section-title">${section.score}/${section.maxScore} ${renderHelpTip("Section score")}</h2>
             </div>
-            <span class="section-badge">${progress}%</span>
+            <span class="section-badge">${progress}% ${renderHelpTip("Section progress")}</span>
           </div>
           <div class="progress-track" aria-hidden="true">
             <div class="progress-bar" style="width: ${progress}%;"></div>
           </div>
           <div class="meta-row">
-            <span class="muted">${issues.length} issues</span>
-            ${insights.length ? `<span class="muted">${insights.length} insights</span>` : ""}
-            <span class="muted">${passedChecks.length} passed checks</span>
+            <span class="muted">${issues.length} issues ${renderHelpTip("Issues")}</span>
+            ${insights.length ? `<span class="muted">${insights.length} insights ${renderHelpTip("Insights")}</span>` : ""}
+            <span class="muted">${passedChecks.length} passed checks ${renderHelpTip("Passed checks")}</span>
           </div>
           <ul class="section-highlights">${highlightsMarkup}${insightMarkup}</ul>
         </section>
@@ -196,8 +182,8 @@ export function renderSectionSummary(audit) {
     }).join("");
 
   return `
-    <section>
-      <div class="eyebrow">Section Breakdown</div>
+    <section class="section-block">
+      <div class="eyebrow">${renderHelpLabel("Section Breakdown")}</div>
       <div class="sections">${sectionsMarkup}</div>
     </section>
   `;
@@ -215,10 +201,10 @@ export function renderIssuesReport(audit) {
       <section class="section-card report-group">
         <div class="section-row">
           <div>
-            <div class="eyebrow">${SECTION_LABELS[sectionKey]}</div>
+            <div class="eyebrow">${renderHelpLabel(SECTION_LABELS[sectionKey])}</div>
             <h2 class="section-title">${issues.length} issue${issues.length === 1 ? "" : "s"}</h2>
           </div>
-          <span class="section-badge">${section.score}/${section.maxScore}</span>
+          <span class="section-badge">${section.score}/${section.maxScore} ${renderHelpTip("Section score")}</span>
         </div>
         <div class="issue-list">${issueMarkup}</div>
       </section>
@@ -226,7 +212,7 @@ export function renderIssuesReport(audit) {
   }).join("");
 
   return `
-    <section>
+    <section class="section-block">
       <div class="eyebrow">Issues Report</div>
       <div class="sections">${sectionsMarkup}</div>
     </section>
@@ -245,10 +231,10 @@ export function renderPassedReport(audit) {
       <section class="section-card report-group">
         <div class="section-row">
           <div>
-            <div class="eyebrow">${SECTION_LABELS[sectionKey]}</div>
+            <div class="eyebrow">${renderHelpLabel(SECTION_LABELS[sectionKey])}</div>
             <h2 class="section-title">${passedChecks.length} passed</h2>
           </div>
-          <span class="section-badge">${section.score}/${section.maxScore}</span>
+          <span class="section-badge">${section.score}/${section.maxScore} ${renderHelpTip("Section score")}</span>
         </div>
         <div class="passed-checks">${passedMarkup}</div>
       </section>
@@ -256,7 +242,7 @@ export function renderPassedReport(audit) {
   }).join("");
 
   return `
-    <section>
+    <section class="section-block">
       <div class="eyebrow">Passed Checks</div>
       <div class="sections">${sectionsMarkup}</div>
     </section>
@@ -268,7 +254,6 @@ export function renderDataReport(pageData) {
     .map(
       (group) => `
         <section class="section-card report-group">
-          <div class="eyebrow">Raw Data</div>
           <h2 class="section-title">${escapeHtml(group.title)}</h2>
           <div class="value-list">
             ${group.rows.map(([label, value]) => renderValueRow(label, value)).join("")}
@@ -279,7 +264,7 @@ export function renderDataReport(pageData) {
     .join("");
 
   return `
-    <section>
+    <section class="section-block">
       <div class="eyebrow">Page Data</div>
       <div class="sections">${groupsMarkup}</div>
     </section>

@@ -1,4 +1,5 @@
 import { escapeHtml } from "./escapeHtml.js";
+import { renderHelpLabel, renderHelpTip } from "./helpText.js";
 
 function getBadgeClass(scoreLabel) {
   if (scoreLabel === "Good") {
@@ -18,13 +19,12 @@ export function renderScore(audit) {
 
   return `
     <section class="score-card">
-      <div class="eyebrow">SEO Score</div>
+      <div class="eyebrow">${renderHelpLabel("SEO Score")}</div>
       <div class="score-row">
         <div>
           <div class="score-number">${audit.score}</div>
-          <div class="score-label">Grade: ${safeLabel}</div>
         </div>
-        <span class="${getBadgeClass(audit.scoreLabel)}">${safeLabel}</span>
+        <span class="${getBadgeClass(audit.scoreLabel)}">${safeLabel} ${renderHelpTip("Score label")}</span>
       </div>
       <div class="progress-track" aria-hidden="true">
         <div class="progress-bar" style="width: ${progressWidth}%;"></div>

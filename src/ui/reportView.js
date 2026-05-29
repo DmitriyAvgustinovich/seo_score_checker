@@ -6,31 +6,21 @@ import {
 } from "./renderSections.js";
 import { renderSerpPreview } from "./renderSerpPreview.js";
 import { renderTopFixes } from "./renderTopFixes.js";
-
-function formatValue(value) {
-  if (Array.isArray(value)) {
-    return value.length ? value.join(", ") : "(none)";
-  }
-
-  if (typeof value === "boolean") {
-    return value ? "Yes" : "No";
-  }
-
-  if (value === null || value === undefined || value === "") {
-    return "(missing)";
-  }
-
-  return String(value);
-}
+import { renderRisk } from "./renderRisk.js";
+import { renderScore } from "./renderScore.js";
+import { renderHelpLabel, renderHelpTip } from "./helpText.js";
+import { renderInteractiveValue } from "./renderInteractiveValue.js";
 
 function renderTable(headers, rows, options = {}) {
   const { compact = false } = options;
+  const rowLabelHeaders = new Set(["Field", "Signal"]);
+
   return `
     <div class="table-shell ${compact ? "table-shell--compact" : ""}">
       <table class="data-table">
         <thead>
           <tr>
-            ${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}
+            ${headers.map((header) => `<th>${renderHelpLabel(header)}</th>`).join("")}
           </tr>
         </thead>
         <tbody>
@@ -40,8 +30,12 @@ function renderTable(headers, rows, options = {}) {
                 <tr>
                   ${row
                     .map(
-                      (cell, index) =>
-                        `<td data-label="${escapeHtml(headers[index] || "")}">${escapeHtml(formatValue(cell))}</td>`
+                      (cell, index) => {
+                        const isRowLabel = index === 0 && rowLabelHeaders.has(headers[0]);
+                        const cellMarkup = isRowLabel ? renderHelpLabel(cell) : renderInteractiveValue(cell);
+
+                        return `<td data-label="${escapeHtml(headers[index] || "")}">${cellMarkup}</td>`;
+                      }
                     )
                     .join("")}
                 </tr>
@@ -52,6 +46,50 @@ function renderTable(headers, rows, options = {}) {
       </table>
     </div>
   `;
+}
+
+function renderValueRow(label, value) {
+  return `
+    <div class="value-row">
+      <div class="value-label">${renderHelpLabel(label)}</div>
+      <div class="value-value">${renderInteractiveValue(value)}</div>
+    </div>
+  `;
+}
+
+function renderStatBadge(label, value, modifier = "") {
+  return `
+    <span class="stat-badge ${modifier}">
+      <span>${renderHelpLabel(label)}</span>
+      <strong>${renderInteractiveValue(value)}</strong>
+    </span>
+  `;
+}
+
+function getImpactClass(scoreImpact) {
+  if (scoreImpact >= 8) {
+    return "high";
+  }
+
+  if (scoreImpact >= 4) {
+    return "medium";
+  }
+
+  return "low";
+}
+
+function getConfidenceClass(confidence = "Medium") {
+  const normalized = confidence.toLowerCase();
+
+  if (normalized === "high") {
+    return "high";
+  }
+
+  if (normalized === "low") {
+    return "low";
+  }
+
+  return "medium";
 }
 
 function renderIssueCards(title, issues, emptyState) {
@@ -71,12 +109,12 @@ function renderIssueCards(title, issues, emptyState) {
                   (issue) => {
                     const scoreMeta = issue.infoOnly
                       ? '<span class="muted">Diagnostic insight, no score loss</span>'
-                      : `<span class="muted">Score impact: -${issue.scoreImpact}</span>`;
+                      : `<span class="impact-badge impact-badge--${issue.severity}">Impact: -${issue.scoreImpact} points ${renderHelpTip("Impact")}</span>`;
                     return `
                       <article class="issue issue--${issue.severity}">
                         <div class="fix-row">
                           <h3 class="fix-title">${escapeHtml(issue.title)}</h3>
-                          <span class="impact-badge impact-badge--${issue.severity}">${escapeHtml(issue.infoOnly ? "Insight" : issue.severity)}</span>
+                          <span class="impact-badge impact-badge--${issue.severity}">${escapeHtml(issue.infoOnly ? "Insight" : issue.severity)} ${renderHelpTip("Severity")}</span>
                         </div>
                         <p class="issue__text">${escapeHtml(issue.recommendation)}</p>
                         <div class="meta-row">
@@ -116,12 +154,18 @@ function renderPageTab(data) {
     ["Meta description", pageData.metaDescription.text],
     ["Meta description length", pageData.metaDescription.length],
     ["Canonical", pageData.canonical.href],
+    ["Canonical exists", pageData.canonical.exists],
+    ["Canonical valid", pageData.canonical.isValid],
     ["Canonical matches current URL", pageData.canonical.pointsToCurrentUrl],
     ["Robots", pageData.robots.content],
     ["Googlebot", pageData.robots.googlebotContent],
+    ["Noindex", pageData.robots.noindex],
+    ["Nofollow", pageData.robots.nofollow],
     ["Lang", pageData.technical.lang],
     ["Charset", pageData.technical.charset],
     ["Viewport", pageData.technical.viewport],
+    ["Has viewport", pageData.technical.hasViewport],
+    ["Responsive viewport", pageData.technical.hasResponsiveViewport],
     ["URL length", pageData.urlSignals.length],
     ["Path depth", pageData.urlSignals.pathDepth],
     ["Query params", pageData.urlSignals.queryParamCount],
@@ -139,16 +183,16 @@ function renderPageTab(data) {
 
   return `
     <div class="sections">
+      ${renderIssueCards("Indexability, metadata, and technical basics", pageIssues, "No page-level issues found.")}
       <section class="section-card report-group">
         <div class="section-row">
           <div>
-            <div class="eyebrow">Page</div>
-            <h2 class="section-title">Document-level signals</h2>
+            <div class="eyebrow">Meta</div>
+            <h2 class="section-title">Meta tags and page signals</h2>
           </div>
         </div>
         ${renderTable(["Field", "Value"], rows)}
       </section>
-      ${renderIssueCards("Indexability, metadata, and technical basics", pageIssues, "No page-level issues found.")}
     </div>
   `;
 }
@@ -164,6 +208,7 @@ function renderLinksTab(data) {
 
   return `
     <div class="sections">
+      ${renderIssueCards("Link issues", getSectionIssues(data, ["links"]), "No link issues found.")}
       <section class="section-card report-group">
         <div class="section-row">
           <div>
@@ -172,17 +217,16 @@ function renderLinksTab(data) {
           </div>
           <button type="button" class="button button--secondary" data-action="export-links-csv">Export CSV</button>
         </div>
-        <div class="meta-row">
-          <span class="muted">Total: ${data.pageData.links.total}</span>
-          <span class="muted">Internal: ${data.pageData.links.internal}</span>
-          <span class="muted">External: ${data.pageData.links.external}</span>
-          <span class="muted">Placeholder: ${data.pageData.links.placeholders}</span>
-          <span class="muted">Contextual internal: ${data.pageData.links.contextualInternal}</span>
-          <span class="muted">Generic anchors: ${data.pageData.links.genericAnchorCount}</span>
+        <div class="link-stats" aria-label="Link statistics">
+          ${renderStatBadge("Total", data.pageData.links.total)}
+          ${renderStatBadge("Internal", data.pageData.links.internal, "stat-badge--internal")}
+          ${renderStatBadge("External", data.pageData.links.external, "stat-badge--external")}
+          ${renderStatBadge("Placeholder", data.pageData.links.placeholders, "stat-badge--warning")}
+          ${renderStatBadge("Contextual internal", data.pageData.links.contextualInternal, "stat-badge--internal")}
+          ${renderStatBadge("Generic anchors", data.pageData.links.genericAnchorCount)}
         </div>
         ${renderTable(["Anchor text", "Type", "Follow", "URL kind", "URL"], rows)}
       </section>
-      ${renderIssueCards("Link issues", getSectionIssues(data, ["links"]), "No link issues found.")}
     </div>
   `;
 }
@@ -195,48 +239,59 @@ function renderContentTab(data) {
 
   return `
     <div class="sections">
+      ${renderIssueCards("Header issues", getSectionIssues(data, ["headings"]), "No header issues found.")}
       <section class="section-card report-group">
         <div class="section-row">
           <div>
-            <div class="eyebrow">Content</div>
-            <h2 class="section-title">Headings and image evidence</h2>
+            <div class="eyebrow">Headers</div>
+            <h2 class="section-title">Header structure and content depth</h2>
           </div>
         </div>
         <div class="value-list">
           <div class="value-row">
-            <div class="value-label">Heading counts</div>
+            <div class="value-label">${renderHelpLabel("Heading counts")}</div>
             <div class="value-value">
-              H1 ${data.pageData.headings.counts.h1}, H2 ${data.pageData.headings.counts.h2}, H3 ${data.pageData.headings.counts.h3},
-              H4 ${data.pageData.headings.counts.h4}, H5 ${data.pageData.headings.counts.h5}, H6 ${data.pageData.headings.counts.h6}
+              <div class="heading-stats" aria-label="Heading counts">
+                ${renderStatBadge("H1", data.pageData.headings.counts.h1)}
+                ${renderStatBadge("H2", data.pageData.headings.counts.h2)}
+                ${renderStatBadge("H3", data.pageData.headings.counts.h3)}
+                ${renderStatBadge("H4", data.pageData.headings.counts.h4)}
+                ${renderStatBadge("H5", data.pageData.headings.counts.h5)}
+                ${renderStatBadge("H6", data.pageData.headings.counts.h6)}
+              </div>
             </div>
           </div>
-          <div class="value-row">
-            <div class="value-label">Skipped levels</div>
-            <div class="value-value">${data.pageData.headings.hasSkippedLevels ? data.pageData.headings.skipExamples.join(", ") || "Yes" : "No"}</div>
-          </div>
-          <div class="value-row">
-            <div class="value-label">Missing image alts</div>
-            <div class="value-value">${data.pageData.images.missingAlt} of ${data.pageData.images.meaningfulTotal} meaningful images</div>
-          </div>
-          <div class="value-row">
-            <div class="value-label">Content depth</div>
-            <div class="value-value">${data.pageData.readability.contentDepth} (${data.pageData.readability.totalWords} words across ${data.pageData.readability.paragraphCount} paragraphs)</div>
-          </div>
-          <div class="value-row">
-            <div class="value-label">Long paragraphs</div>
-            <div class="value-value">${data.pageData.readability.longParagraphs}</div>
-          </div>
-          <div class="value-row">
-            <div class="value-label">Generic image filenames</div>
-            <div class="value-value">${data.pageData.images.genericFilenameCount}</div>
-          </div>
-          <div class="value-row">
-            <div class="value-label">Images without dimensions</div>
-            <div class="value-value">${data.pageData.images.missingDimensionsCount}</div>
+          ${renderValueRow("Skipped levels", data.pageData.headings.hasSkippedLevels ? data.pageData.headings.skipExamples.join(", ") || "Yes" : "No")}
+          ${renderValueRow("Total headings", data.pageData.headings.total)}
+          ${renderValueRow("Content depth", data.pageData.readability.contentDepth + " (" + data.pageData.readability.totalWords + " words across " + data.pageData.readability.paragraphCount + " paragraphs)")}
+          ${renderValueRow("Long paragraphs", data.pageData.readability.longParagraphs)}
+        </div>
+        <div class="section-subtitle">Headers</div>
+        ${renderTable(["Level", "Text"], headingRows, { compact: true })}
+      </section>
+    </div>
+  `;
+}
+
+function renderImagesTab(data) {
+  return `
+    <div class="sections">
+      ${renderIssueCards("Image issues", getSectionIssues(data, ["images"]), "No image issues found.")}
+      <section class="section-card report-group">
+        <div class="section-row">
+          <div>
+            <div class="eyebrow">Images</div>
+            <h2 class="section-title">Image alt text and file signals</h2>
           </div>
         </div>
-        <div class="section-subtitle">Headings</div>
-        ${renderTable(["Level", "Text"], headingRows, { compact: true })}
+        <div class="value-list">
+          ${renderValueRow("Total images", data.pageData.images.total)}
+          ${renderValueRow("Meaningful images", data.pageData.images.meaningfulTotal)}
+          ${renderValueRow("Missing image alts", data.pageData.images.missingAlt + " of " + data.pageData.images.meaningfulTotal + " meaningful images")}
+          ${renderValueRow("Missing alt ratio", data.pageData.images.missingAltRatio)}
+          ${renderValueRow("Generic image filenames", data.pageData.images.genericFilenameCount)}
+          ${renderValueRow("Images without dimensions", data.pageData.images.missingDimensionsCount)}
+        </div>
         <div class="section-subtitle">Images missing alt</div>
         ${
           data.pageData.images.missingAltSamples.length
@@ -252,7 +307,6 @@ function renderContentTab(data) {
             : '<div class="passed-item">No missing alt samples.</div>'
         }
       </section>
-      ${renderIssueCards("Heading and image issues", getSectionIssues(data, ["headings", "images"]), "No content issues found.")}
     </div>
   `;
 }
@@ -277,30 +331,36 @@ function renderSocialTab(data) {
 
   return `
     <div class="sections">
+      ${renderIssueCards("Social and schema issues", getStructuredIssues(data), "No social or schema issues found.")}
       <section class="section-card report-group">
         <div class="section-row">
           <div>
-            <div class="eyebrow">Schema and secondary</div>
-            <h2 class="section-title">Schema and secondary preview signals</h2>
+            <div class="eyebrow">Social</div>
+            <h2 class="section-title">Social preview and schema signals</h2>
           </div>
         </div>
         <div class="section-subtitle">Structured data</div>
         ${renderTable(["Field", "Value"], jsonLdRows, { compact: true })}
         <div class="section-subtitle">Open Graph and Twitter</div>
         ${renderTable(["Field", "Value"], socialRows, { compact: true })}
+        <div class="section-subtitle">Commercial intent</div>
+        <div class="value-list">
+          ${renderValueRow("Detected", data.pageData.commercialIntent.detected)}
+          ${renderValueRow("Matched terms", data.pageData.commercialIntent.matchedTerms)}
+        </div>
       </section>
-      ${renderIssueCards("Schema and secondary issues", getStructuredIssues(data), "No schema or secondary issues found.")}
     </div>
   `;
 }
 
 function renderTabNav(activeTab) {
   const tabs = [
-    ["overview", "Overview"],
-    ["page", "Page"],
+    ["overview", "Summary"],
+    ["page", "Meta"],
+    ["headers", "Headers"],
+    ["images", "Images"],
     ["links", "Links"],
-    ["content", "Content"],
-    ["social", "Secondary"]
+    ["social", "Social"]
   ];
 
   return `
@@ -332,8 +392,12 @@ function renderActiveTab(data, activeTab) {
     return renderLinksTab(data);
   }
 
-  if (activeTab === "content") {
+  if (activeTab === "headers" || activeTab === "content") {
     return renderContentTab(data);
+  }
+
+  if (activeTab === "images") {
+    return renderImagesTab(data);
   }
 
   if (activeTab === "social") {
@@ -341,34 +405,36 @@ function renderActiveTab(data, activeTab) {
   }
 
   return `
-    ${renderTopFixes(data.topFixes)}
-    ${renderSerpPreview(data.serpPreview)}
-    ${renderSectionSummary(data.audit)}
-    <section class="report-group">
-      <div class="section-row">
-        <div>
-          <div class="eyebrow">Evidence</div>
-          <h2 class="section-title">All raw values</h2>
-        </div>
-      </div>
-      ${renderDataReport(data.pageData)}
-    </section>
+    <div class="report-stack">
+      ${renderTopFixes(data.topFixes)}
+      ${renderSerpPreview(data.serpPreview)}
+      ${renderSectionSummary(data.audit)}
+    </div>
   `;
 }
 
 export function renderReportView(data, activeTab) {
+  const summaryMarkup =
+    activeTab === "overview"
+      ? `
+        <div class="report-summary">
+          ${renderScore(data.audit)}
+          ${renderRisk(data.risk)}
+        </div>
+      `
+      : "";
+
   return `
     <section class="report-card">
       <div class="report-card__header">
-        <div>
-          <div class="eyebrow">Current Page Report</div>
-          <h2 class="section-title">Current-page SEO details</h2>
-        </div>
+        ${renderTabNav(activeTab)}
         <button type="button" class="button button--secondary" data-action="export-pdf">Export PDF</button>
       </div>
-      ${renderTabNav(activeTab)}
-      <div class="report-tab-panel">
-        ${renderActiveTab(data, activeTab)}
+      <div class="report-card__body">
+        ${summaryMarkup}
+        <div class="report-tab-panel">
+          ${renderActiveTab(data, activeTab)}
+        </div>
       </div>
     </section>
   `;
@@ -453,6 +519,90 @@ export const PRINTABLE_REPORT_STYLES = `
     font-size: 28px;
   }
   .muted { color: var(--muted); }
+  .label-with-help {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    vertical-align: middle;
+  }
+  .help-tip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 17px;
+    height: 17px;
+    border: 1px solid #d4deea;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.86);
+    color: #8fa0b6;
+    cursor: help;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1;
+    vertical-align: middle;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  }
+  .help-tip::before,
+  .help-tip::after {
+    position: absolute;
+    left: 50%;
+    z-index: 60;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 150ms ease, transform 150ms ease, visibility 150ms ease;
+    visibility: hidden;
+  }
+  .help-tip::before {
+    content: "";
+    bottom: calc(100% + 3px);
+    width: 8px;
+    height: 8px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    transform: translate(-50%, 4px) rotate(45deg);
+  }
+  .help-tip::after {
+    content: attr(data-help);
+    bottom: calc(100% + 7px);
+    width: max-content;
+    max-width: 260px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: 0 14px 32px rgba(15, 23, 42, 0.16);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0;
+    line-height: 1.35;
+    text-align: left;
+    text-transform: none;
+    transform: translate(-50%, 4px);
+    white-space: normal;
+  }
+  .help-tip:hover,
+  .help-tip:focus-visible {
+    border-color: #b7c5d8;
+    color: #1d4ed8;
+    outline: 0;
+  }
+  .help-tip:hover::before,
+  .help-tip:focus-visible::before {
+    opacity: 1;
+    transform: translate(-50%, 0) rotate(45deg);
+    visibility: visible;
+  }
+  .help-tip:hover::after,
+  .help-tip:focus-visible::after {
+    opacity: 1;
+    transform: translate(-50%, 0);
+    visibility: visible;
+  }
   .section-title { margin: 0 0 12px; font-size: 18px; }
   .eyebrow {
     font-size: 11px;
@@ -499,6 +649,58 @@ export const PRINTABLE_REPORT_STYLES = `
   }
   .value-label { font-weight: 700; }
   .value-value { word-break: break-word; }
+  .value-link {
+    position: relative;
+    display: inline;
+    color: #2563eb;
+    border-radius: 6px;
+    padding: 1px 3px;
+    margin: -1px -3px;
+    text-decoration: none;
+    transition: background-color 160ms ease, box-shadow 160ms ease, color 160ms ease;
+  }
+  .value-link:hover,
+  .value-link:focus-visible {
+    color: #1d4ed8;
+    background: rgba(37, 99, 235, 0.1);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.06);
+    outline: 0;
+  }
+  .value-link__text {
+    display: inline;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .image-preview {
+    position: absolute;
+    left: 0;
+    top: calc(100% + 8px);
+    z-index: 20;
+    width: 220px;
+    max-width: calc(100vw - 48px);
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: 0 16px 36px rgba(15, 23, 42, 0.18);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-4px);
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+  .image-preview img {
+    display: block;
+    width: 100%;
+    max-height: 150px;
+    object-fit: contain;
+    border-radius: 8px;
+    background: var(--surface-alt);
+  }
+  .value-link:hover .image-preview,
+  .value-link:focus-visible .image-preview {
+    opacity: 1;
+    transform: translateY(0);
+  }
   .progress-track {
     width: 100%;
     height: 10px;
@@ -527,7 +729,8 @@ export const PRINTABLE_REPORT_STYLES = `
   }
   .pill,
   .section-badge,
-  .impact-badge {
+  .impact-badge,
+  .confidence-badge {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -538,6 +741,33 @@ export const PRINTABLE_REPORT_STYLES = `
     color: var(--muted);
     font-size: 12px;
     font-weight: 700;
+  }
+  .risk-badge--low,
+  .impact-badge--low {
+    color: #2563eb;
+    background: rgba(37, 99, 235, 0.1);
+  }
+  .risk-badge--medium,
+  .impact-badge--medium {
+    color: #d97706;
+    background: rgba(217, 119, 6, 0.12);
+  }
+  .risk-badge--high,
+  .impact-badge--high {
+    color: #dc2626;
+    background: rgba(220, 38, 38, 0.1);
+  }
+  .confidence-badge--low {
+    color: var(--muted);
+    background: #eef3f9;
+  }
+  .confidence-badge--medium {
+    color: #d97706;
+    background: rgba(217, 119, 6, 0.12);
+  }
+  .confidence-badge--high {
+    color: #0f9f6e;
+    background: rgba(15, 159, 110, 0.1);
   }
   .panel-meta,
   .meta-row {
@@ -568,6 +798,10 @@ export const PRINTABLE_REPORT_STYLES = `
     text-decoration: none;
     word-break: break-all;
   }
+  .serp-card .value-link:hover,
+  .serp-card .value-link:focus-visible {
+    color: #1d4ed8;
+  }
   .serp-card h3 {
     margin: 8px 0 6px;
     color: #1a0dab;
@@ -595,16 +829,11 @@ export const PRINTABLE_REPORT_STYLES = `
   .issue__text {
     color: var(--muted);
   }
-  .report-risk-level {
-    font-size: 32px;
-    font-weight: 800;
-    line-height: 1.1;
-    margin: 10px 0 8px;
-  }
   @media print {
     body { background: white; }
     .page-header { display: none; }
     .wrap { max-width: none; }
+    .image-preview { display: none; }
   }
   @media (max-width: 900px) {
     .grid,
@@ -633,26 +862,28 @@ export function buildPrintableReport(data) {
         <section class="report-panel">
           <div class="report-panel__header">
             <div>
-              <div class="eyebrow">${escapeHtml(SECTION_LABELS[key] || key)}</div>
-              <h3 class="panel-title">${section.score}/${section.maxScore}</h3>
+              <div class="eyebrow">${renderHelpLabel(SECTION_LABELS[key] || key)}</div>
+              <h3 class="panel-title">${section.score}/${section.maxScore} ${renderHelpTip("Section score")}</h3>
             </div>
-            <div class="pill">${progress}%</div>
+            <div class="pill">${progress}% ${renderHelpTip("Section progress")}</div>
           </div>
           <div class="progress-track"><div class="progress-bar" style="width:${progress}%;"></div></div>
           <div class="panel-meta">
-            <span>${issues.length} issues</span>
-            ${insights.length ? `<span>${insights.length} insights</span>` : ""}
-            <span>${passedChecks.length} passed</span>
+            <span>${issues.length} issues ${renderHelpTip("Issues")}</span>
+            ${insights.length ? `<span>${insights.length} insights ${renderHelpTip("Insights")}</span>` : ""}
+            <span>${passedChecks.length} passed ${renderHelpTip("Passed checks")}</span>
           </div>
           <div class="report-list">
             ${
               issues.length
-                ? issues
+                  ? issues
                     .map(
                       (item) => `
                         <div class="report-item">
                           <div class="report-item__title">${escapeHtml(item.title)}</div>
-                          <div class="report-item__meta">Impact: ${escapeHtml(item.severity)} | Score impact: -${item.scoreImpact}</div>
+                          <div class="panel-meta">
+                            <span class="impact-badge impact-badge--${item.severity}">Impact: -${item.scoreImpact} points ${renderHelpTip("Impact")}</span>
+                          </div>
                           <div>${escapeHtml(item.recommendation)}</div>
                         </div>
                       `
@@ -731,7 +962,7 @@ export function buildPrintableReport(data) {
         <div class="eyebrow">SEO Score Checker</div>
         <h1 class="title">SEO Score Checker Report</h1>
         <div class="muted">${escapeHtml(data.pageData.hostname || "Unknown host")}</div>
-        <div class="muted">${escapeHtml(data.pageData.url || "")}</div>
+        <div class="muted">${renderInteractiveValue(data.pageData.url || "")}</div>
         <div class="print-note">This report is based on the current page only. It does not crawl an entire domain.</div>
       </div>
       <div class="page-actions">
@@ -747,19 +978,23 @@ export function buildPrintableReport(data) {
                 <h2 class="section-title">Current-page summary</h2>
                 <div class="muted">This report is based on the current page only. It does not crawl an entire domain.</div>
               </div>
-              <div class="pill">${escapeHtml(data.audit.scoreLabel)}</div>
+              <div class="pill">${escapeHtml(data.audit.scoreLabel)} ${renderHelpTip("Score label")}</div>
             </div>
             <div class="report-score-grid">
               <div class="report-kpi">
-                <div class="eyebrow">SEO Score</div>
+                <div class="report-panel__header">
+                  <div class="eyebrow">${renderHelpLabel("SEO Score")}</div>
+                  <div class="pill">${escapeHtml(data.audit.scoreLabel)} ${renderHelpTip("Score label")}</div>
+                </div>
                 <div class="report-kpi__value">${data.audit.score}</div>
-                <div class="report-kpi__subtitle">${escapeHtml(data.audit.scoreLabel)}</div>
                 <div class="progress-track"><div class="progress-bar" style="width:${data.audit.score}%;"></div></div>
               </div>
               <div class="report-kpi">
-                <div class="eyebrow">Traffic Risk</div>
-                <div class="report-risk-level">${escapeHtml(data.risk.level)}</div>
-                <div class="muted">Type: ${escapeHtml(data.risk.category || "No material risk")}</div>
+                <div class="report-panel__header">
+                  <div class="eyebrow">${renderHelpLabel("Traffic Risk")}</div>
+                  <div class="pill risk-badge--${data.risk.level.toLowerCase()}">${escapeHtml(data.risk.level)} ${renderHelpTip("Traffic Risk")}</div>
+                </div>
+                <div class="muted">${renderHelpLabel("Risk type")}: ${escapeHtml(data.risk.category || "No material risk")}</div>
                 <div class="report-kpi__subtitle">${escapeHtml(data.risk.reason)}</div>
                 <div class="muted">Traffic Risk is a heuristic priority label for organic visibility, snippets, clicks, and common publishing issues. It is not a revenue estimate or ROI forecast.</div>
               </div>
@@ -781,10 +1016,13 @@ export function buildPrintableReport(data) {
                         (issue) => `
                           <div class="item">
                             <h3>Issue: ${escapeHtml(issue.title)}</h3>
-                            <div><strong>Evidence:</strong> ${escapeHtml(issue.evidence || "Detected directly from current-page signals.")}</div>
-                            <div><strong>Why it matters:</strong> ${escapeHtml(issue.whyItMatters || "")}</div>
-                            <div><strong>Fix:</strong> ${escapeHtml(issue.fix || issue.recommendation)}</div>
-                            <div class="muted">Impact: -${issue.scoreImpact} points | Confidence: ${escapeHtml(issue.confidence || "Medium")}</div>
+                            <div><strong>${renderHelpLabel("Evidence")}:</strong> ${renderInteractiveValue(issue.evidence || "Detected directly from current-page signals.")}</div>
+                            <div><strong>${renderHelpLabel("Why it matters")}:</strong> ${renderInteractiveValue(issue.whyItMatters || "")}</div>
+                            <div><strong>${renderHelpLabel("Fix")}:</strong> ${renderInteractiveValue(issue.fix || issue.recommendation)}</div>
+                            <div class="panel-meta">
+                              <span class="impact-badge impact-badge--${getImpactClass(issue.scoreImpact)}">Impact: -${issue.scoreImpact} points ${renderHelpTip("Impact")}</span>
+                              <span class="confidence-badge confidence-badge--${getConfidenceClass(issue.confidence || "Medium")}">Confidence: ${escapeHtml(issue.confidence || "Medium")} ${renderHelpTip("Confidence")}</span>
+                            </div>
                           </div>
                         `
                       )
@@ -797,7 +1035,7 @@ export function buildPrintableReport(data) {
           <section class="card">
             <h2 class="section-title">SERP Preview</h2>
             <div class="serp-card">
-              <a href="${escapeHtml(data.serpPreview.url)}" target="_blank" rel="noreferrer noopener">${escapeHtml(data.serpPreview.url)}</a>
+              ${renderInteractiveValue(data.serpPreview.url)}
               <h3>${escapeHtml(data.serpPreview.title)}</h3>
               <div>${escapeHtml(data.serpPreview.description)}</div>
             </div>

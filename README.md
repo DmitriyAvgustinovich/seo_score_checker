@@ -32,8 +32,8 @@ The extension keeps the existing vanilla JavaScript stack:
 - `manifest.json`: Manifest V3 configuration
 - `popup.html`: popup shell
 - `popup.js`: active tab lookup, script injection, analysis orchestration, CSV/PDF actions
-- `content.js`: local DOM collection in the active tab
-- `report.html` / `report.js`: printable report page for PDF export
+- `src/content/content.js`: local DOM collection in the active tab
+- `src/report/report.html` / `src/report/report.js`: printable report page for PDF export
 - `src/analyzer/*`: scoring, risk, top fixes, SERP preview
 - `src/ui/*`: popup/report rendering
 - `src/constants/*`: weights, thresholds, issue catalog
@@ -68,8 +68,8 @@ Analysis is user-triggered by opening/clicking the extension popup.
 
 1. `popup.js` queries the active tab.
 2. Restricted browser/extension pages are blocked before injection.
-3. `popup.js` injects `content.js` with `chrome.scripting.executeScript`.
-4. `content.js` collects DOM-derived `pageData`.
+3. `popup.js` injects `src/content/content.js` with `chrome.scripting.executeScript`.
+4. `src/content/content.js` collects DOM-derived `pageData`.
 5. The popup computes:
    - `scorePage(pageData)`
    - `calculateRevenueRisk(audit.issues, pageData)` internally
@@ -81,7 +81,7 @@ Internal function names may still include `revenueRisk`; visible UI uses `Traffi
 
 ## DOM Signals Collected
 
-`content.js` collects only current-page data:
+`src/content/content.js` collects only current-page data:
 
 - document title
 - meta description
@@ -386,10 +386,10 @@ Columns:
 The popup opens:
 
 ```text
-report.html#data=<encoded current-page payload>
+src/report/report.html#data=<encoded current-page payload>
 ```
 
-`report.js` hydrates a printable local report. The user saves through Chrome's print dialog.
+`src/report/report.js` hydrates a printable local report. The user saves through Chrome's print dialog.
 
 ## Error States
 

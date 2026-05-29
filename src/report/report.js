@@ -1,4 +1,4 @@
-import { buildPrintableReport, PRINTABLE_REPORT_STYLES } from "./src/ui/reportView.js";
+import { buildPrintableReport, PRINTABLE_REPORT_STYLES } from "../ui/reportView.js";
 
 function parseReportPayload() {
   try {

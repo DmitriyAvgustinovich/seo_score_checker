@@ -12,6 +12,26 @@ let currentState = {
   status: "loading"
 };
 
+async function openResourceLink(link) {
+  const openUrl = link.dataset.openUrl || link.href;
+  const sourceUrl = link.dataset.sourceUrl || openUrl;
+  const tabsApi = globalThis.chrome && globalThis.chrome.tabs;
+
+  try {
+    if (tabsApi && tabsApi.create) {
+      await tabsApi.create({ url: openUrl });
+      return;
+    }
+  } catch (error) {
+    if (openUrl !== sourceUrl && tabsApi && tabsApi.create) {
+      await tabsApi.create({ url: sourceUrl });
+      return;
+    }
+  }
+
+  window.open(sourceUrl || openUrl, "_blank", "noopener");
+}
+
 function setState(nextState) {
   currentState = {
     ...currentState,
@@ -50,6 +70,13 @@ function bindActions() {
       exportLinksCsv();
     });
   });
+
+  appRoot.querySelectorAll("[data-action='open-resource-link']").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      void openResourceLink(link);
+    });
+  });
 }
 
 function isRestrictedUrl(url) {
@@ -68,7 +95,7 @@ async function getActiveTab() {
 async function collectPageData(tabId) {
   const results = await chrome.scripting.executeScript({
     target: { tabId },
-    files: ["content.js"]
+    files: ["src/content/content.js"]
   });
 
   return results && results[0] ? results[0].result : null;
@@ -141,7 +168,7 @@ async function exportPdf() {
 
   try {
     const payload = encodeURIComponent(JSON.stringify(currentState.data));
-    const reportUrl = chrome.runtime.getURL("report.html") + "#data=" + payload;
+    const reportUrl = chrome.runtime.getURL("src/report/report.html") + "#data=" + payload;
     await chrome.tabs.create({ url: reportUrl });
   } catch (error) {
     console.error("SEO Score Checker: export failed.", error);
