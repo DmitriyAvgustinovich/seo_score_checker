@@ -2,7 +2,9 @@
 
 `SEO Score Checker` is a Manifest V3 Chrome extension for current-page SEO scoring and explainable top fixes.
 
-It checks only the currently open URL / active tab. It is not a crawler, full website audit, rank tracker, backlink checker, keyword tool, PageSpeed tool, or SEO suite.
+SEO Score Checker checks the current open page and shows a 0-100 SEO score, Traffic Risk, SERP preview, section breakdown, and explainable top fixes.
+
+It checks only the currently open URL / active tab. It is not a site crawler, rank tracker, backlink checker, keyword tool, PageSpeed tool, or SEO suite.
 
 ## Product Promise
 
@@ -459,7 +461,7 @@ Expected:
 
 Do not implement:
 
-- full website/domain audit
+- multi-page domain review
 - crawling
 - sitemap parsing
 - PageSpeed

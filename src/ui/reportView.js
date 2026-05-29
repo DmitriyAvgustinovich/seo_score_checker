@@ -361,8 +361,8 @@ export function renderReportView(data, activeTab) {
     <section class="report-card">
       <div class="report-card__header">
         <div>
-          <div class="eyebrow">Current-page report</div>
-          <h2 class="section-title">Current-page SEO score and explainable top fixes</h2>
+          <div class="eyebrow">Current Page Report</div>
+          <h2 class="section-title">Current-page SEO details</h2>
         </div>
         <button type="button" class="button button--secondary" data-action="export-pdf">Export PDF</button>
       </div>
@@ -732,7 +732,7 @@ export function buildPrintableReport(data) {
         <h1 class="title">SEO Score Checker Report</h1>
         <div class="muted">${escapeHtml(data.pageData.hostname || "Unknown host")}</div>
         <div class="muted">${escapeHtml(data.pageData.url || "")}</div>
-        <div class="print-note">This extension checks one open URL at a time. It does not crawl an entire domain.</div>
+        <div class="print-note">This report is based on the current page only. It does not crawl an entire domain.</div>
       </div>
       <div class="page-actions">
         <button type="button" class="action-button action-button--primary" id="print-report">Print / Save PDF</button>
@@ -744,7 +744,8 @@ export function buildPrintableReport(data) {
             <div class="summary-header">
               <div>
                 <div class="eyebrow">Summary</div>
-                <h2 class="section-title">Export preview</h2>
+                <h2 class="section-title">Current-page summary</h2>
+                <div class="muted">This report is based on the current page only. It does not crawl an entire domain.</div>
               </div>
               <div class="pill">${escapeHtml(data.audit.scoreLabel)}</div>
             </div>

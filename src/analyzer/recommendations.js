@@ -1,6 +1,6 @@
 import { SEVERITY_WEIGHTS } from "../constants/weights.js";
 
-function getConfidence(issue) {
+function getConfidence(issue, pageData) {
   const highConfidenceIds = new Set([
     "noindex",
     "title_missing",
@@ -9,20 +9,23 @@ function getConfidence(issue) {
     "canonical_invalid",
     "canonical_other_url",
     "h1_missing",
-    "h1_multiple",
-    "jsonld_invalid",
-    "viewport_missing_or_weak",
-    "images_missing_alt_high",
-    "images_missing_alt_medium"
+    "jsonld_invalid"
   ]);
   const mediumConfidenceIds = new Set([
     "title_length",
     "meta_description_length",
+    "h1_multiple",
     "headings_skipped",
     "jsonld_missing_or_invalid",
+    "images_missing_alt_high",
+    "images_missing_alt_medium",
     "placeholder_links_some",
     "placeholder_links_many"
   ]);
+
+  if (issue.id === "viewport_missing_or_weak") {
+    return pageData.technical.hasViewport ? "Medium" : "High";
+  }
 
   if (highConfidenceIds.has(issue.id)) {
     return "High";
@@ -41,7 +44,7 @@ function getEvidence(issue, pageData) {
   }
 
   if (issue.id === "title_missing") {
-    return "No title tag text was detected on this page.";
+    return "The document title is empty or missing.";
   }
 
   if (issue.id === "title_length") {
@@ -53,7 +56,7 @@ function getEvidence(issue, pageData) {
   }
 
   if (issue.id === "noindex") {
-    return "A robots directive includes noindex.";
+    return "A robots meta directive contains noindex.";
   }
 
   if (issue.id === "canonical_missing") {
@@ -65,15 +68,15 @@ function getEvidence(issue, pageData) {
   }
 
   if (issue.id === "canonical_other_url") {
-    return "Canonical points to a different URL than the current page.";
+    return "Canonical URL points to a different URL: " + (pageData.canonical.href || "(missing)") + ".";
   }
 
   if (issue.id === "h1_missing") {
-    return "No H1 tag was detected on this page.";
+    return "No H1 heading was found on this page.";
   }
 
   if (issue.id === "h1_multiple") {
-    return "Detected H1 count: " + pageData.h1.count + ".";
+    return "Found " + pageData.h1.count + " H1 headings on this page.";
   }
 
   if (issue.id === "headings_skipped") {
@@ -85,7 +88,7 @@ function getEvidence(issue, pageData) {
   }
 
   if (issue.id === "jsonld_invalid") {
-    return "Invalid JSON-LD blocks detected: " + pageData.jsonLd.invalidCount + ".";
+    return "At least one JSON-LD script could not be parsed.";
   }
 
   if (issue.id === "jsonld_missing_or_invalid") {
@@ -94,11 +97,10 @@ function getEvidence(issue, pageData) {
 
   if (issue.id === "images_missing_alt_high" || issue.id === "images_missing_alt_medium") {
     return (
-      "Missing alt text on " +
       pageData.images.missingAlt +
       " of " +
       pageData.images.meaningfulTotal +
-      " meaningful images."
+      " images are missing alt text."
     );
   }
 
@@ -156,7 +158,7 @@ export function getTopFixes(issues, pageData) {
       return {
         ...issue,
         priority,
-        confidence: getConfidence(issue),
+        confidence: getConfidence(issue, pageData),
         evidence: getEvidence(issue, pageData),
         whyItMatters: getWhyItMatters(issue),
         fix: issue.recommendation
