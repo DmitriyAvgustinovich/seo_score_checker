@@ -107,6 +107,110 @@
     };
   }
 
+  function parseRobotsTxt(url, text, response) {
+    const lines = text.split(/\r?\n/);
+    const sitemapUrls = [];
+    let allowCount = 0;
+    let disallowCount = 0;
+
+    lines.forEach((line) => {
+      const normalized = line.trim();
+      const sitemapMatch = normalized.match(/^sitemap:\s*(\S+)/i);
+
+      if (sitemapMatch) {
+        sitemapUrls.push(sitemapMatch[1]);
+      }
+
+      if (/^allow\s*:/i.test(normalized)) {
+        allowCount += 1;
+      }
+
+      if (/^disallow\s*:/i.test(normalized)) {
+        disallowCount += 1;
+      }
+    });
+
+    return {
+      url,
+      status: "found",
+      statusCode: response.status,
+      contentType: response.headers.get("content-type") || "",
+      size: text.length,
+      allowCount,
+      disallowCount,
+      sitemapCount: sitemapUrls.length,
+      sitemapUrls: sitemapUrls.slice(0, 20),
+      preview: lines.slice(0, 20).join("\n"),
+      truncated: lines.length > 20 || sitemapUrls.length > 20
+    };
+  }
+
+  async function collectRobotsTxt() {
+    let url = "";
+
+    try {
+      url = new URL("/robots.txt", location.origin).toString();
+    } catch (error) {
+      return {
+        url: "",
+        status: "not checked",
+        statusCode: null,
+        contentType: "",
+        size: 0,
+        allowCount: 0,
+        disallowCount: 0,
+        sitemapCount: 0,
+        sitemapUrls: [],
+        preview: "",
+        truncated: false
+      };
+    }
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 2500);
+
+    try {
+      const response = await fetch(url, {
+        cache: "no-store",
+        signal: controller.signal
+      });
+
+      if (!response.ok) {
+        return {
+          url,
+          status: response.status === 404 ? "not found" : "fetch failed",
+          statusCode: response.status,
+          contentType: response.headers.get("content-type") || "",
+          size: 0,
+          allowCount: 0,
+          disallowCount: 0,
+          sitemapCount: 0,
+          sitemapUrls: [],
+          preview: "",
+          truncated: false
+        };
+      }
+
+      return parseRobotsTxt(url, await response.text(), response);
+    } catch (error) {
+      return {
+        url,
+        status: error && error.name === "AbortError" ? "timeout" : "fetch failed",
+        statusCode: null,
+        contentType: "",
+        size: 0,
+        allowCount: 0,
+        disallowCount: 0,
+        sitemapCount: 0,
+        sitemapUrls: [],
+        preview: "",
+        truncated: false
+      };
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  }
+
   function collectHeadings() {
     const nodes = Array.from(document.querySelectorAll("h1,h2,h3,h4,h5,h6"));
     const items = nodes.map((node) => ({
@@ -470,7 +574,75 @@
     };
   }
 
-  function collectPageData() {
+  function resolveResourceUrl(value) {
+    try {
+      return value ? new URL(value, location.href).toString() : "";
+    } catch (error) {
+      return value || "";
+    }
+  }
+
+  function collectPageResources() {
+    const html = [
+      {
+        kind: "Document",
+        type: "HTML",
+        url: location.href
+      },
+      ...Array.from(document.querySelectorAll("iframe[src]")).map((node) => ({
+        kind: "Iframe",
+        type: "HTML",
+        url: resolveResourceUrl(node.getAttribute("src") || "")
+      }))
+    ];
+
+    const css = [
+      ...Array.from(document.querySelectorAll('link[rel~="stylesheet" i][href]')).map((node) => ({
+        kind: "Stylesheet",
+        type: "CSS",
+        url: resolveResourceUrl(node.getAttribute("href") || "")
+      })),
+      ...Array.from(document.querySelectorAll('link[rel~="preload" i][as="style" i][href]')).map((node) => ({
+        kind: "Preload",
+        type: "CSS",
+        url: resolveResourceUrl(node.getAttribute("href") || "")
+      })),
+      ...Array.from(document.querySelectorAll("style")).map((node, index) => ({
+        kind: "Inline style",
+        type: "CSS",
+        url: "Inline style #" + (index + 1) + " (" + textContentOf(node).length + " characters)"
+      }))
+    ];
+
+    const js = [
+      ...Array.from(document.querySelectorAll("script")).map((node, index) => {
+        const src = (node.getAttribute("src") || "").trim();
+        return {
+          kind: src ? node.getAttribute("type") || "Script" : "Inline script",
+          type: "JS",
+          url: src
+            ? resolveResourceUrl(src)
+            : "Inline script #" + (index + 1) + " (" + textContentOf(node).length + " characters)"
+        };
+      }),
+      ...Array.from(document.querySelectorAll('link[rel~="modulepreload" i][href], link[rel~="preload" i][as="script" i][href]')).map((node) => ({
+        kind: node.getAttribute("rel") || "Preload",
+        type: "JS",
+        url: resolveResourceUrl(node.getAttribute("href") || "")
+      }))
+    ];
+
+    return {
+      html,
+      css,
+      js,
+      total: html.length + css.length + js.length,
+      externalTotal: [...html, ...css, ...js].filter((item) => /^https?:\/\//i.test(item.url)).length,
+      inlineTotal: [...css, ...js].filter((item) => item.url.startsWith("Inline ")).length
+    };
+  }
+
+  async function collectPageData() {
     if (!document.body) {
       return null;
     }
@@ -487,6 +659,8 @@
     const social = collectSocial();
     const urlSignals = collectUrlSignals(titleText, h1.texts);
     const readability = collectReadability();
+    const resources = collectPageResources();
+    const robotsTxt = await collectRobotsTxt();
 
     return {
       url: location.href,
@@ -513,7 +687,9 @@
       twitter: social.twitter,
       commercialIntent: collectCommercialIntent(titleText, h1.texts),
       urlSignals,
-      readability
+      readability,
+      resources,
+      robotsTxt
     };
   }
 

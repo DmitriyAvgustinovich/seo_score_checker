@@ -386,10 +386,10 @@ Columns:
 The popup opens:
 
 ```text
-src/report/report.html#data=<encoded current-page payload>
+src/report/report.html
 ```
 
-`src/report/report.js` hydrates a printable local report. The user saves through Chrome's print dialog.
+Before opening the report tab, the popup stores the current-page payload in extension-local `localStorage`. `src/report/report.js` hydrates a printable local report from that payload. The user saves through Chrome's print dialog.
 
 ## Error States
 

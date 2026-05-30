@@ -29,7 +29,7 @@ function renderIssueCard(issue) {
     <article class="issue issue--${issue.severity}">
       <div class="fix-row">
         <h3 class="fix-title">${escapeHtml(issue.title)}</h3>
-        <span class="impact-badge impact-badge--${issue.severity}">${escapeHtml(badgeLabel)} ${renderHelpTip("Severity")}</span>
+        <span class="impact-badge impact-badge--${issue.severity}">${escapeHtml(badgeLabel)}</span>
       </div>
       <p class="issue__text">${escapeHtml(issue.recommendation)}</p>
       <div class="meta-row">
@@ -53,6 +53,8 @@ function renderValueRow(label, value) {
 }
 
 function getDataGroups(pageData) {
+  const robotsTxt = pageData.robotsTxt || {};
+
   return [
     {
       title: "Search Metadata",
@@ -72,10 +74,22 @@ function getDataGroups(pageData) {
         ["Canonical exists", pageData.canonical.exists],
         ["Canonical valid", pageData.canonical.isValid],
         ["Canonical points to current URL", pageData.canonical.pointsToCurrentUrl],
-        ["Robots content", pageData.robots.content],
+        ["Robots meta", pageData.robots.content],
         ["Googlebot content", pageData.robots.googlebotContent],
         ["Noindex", pageData.robots.noindex],
-        ["Nofollow", pageData.robots.nofollow]
+        ["Nofollow", pageData.robots.nofollow],
+        ["Robots.txt URL", robotsTxt.url || ""],
+        ["Robots.txt status", robotsTxt.status || "not checked"],
+        ["Robots.txt HTTP status", robotsTxt.statusCode || "(unknown)"],
+        ["Robots.txt allow rules", robotsTxt.allowCount || 0],
+        ["Robots.txt disallow rules", robotsTxt.disallowCount || 0],
+        ["Robots.txt sitemap directives", robotsTxt.sitemapCount || 0],
+        [
+          "Robots.txt sitemaps shown",
+          robotsTxt.sitemapCount
+            ? (robotsTxt.sitemapUrls || []).length + " shown of " + robotsTxt.sitemapCount + " found"
+            : "No sitemap directives found"
+        ]
       ]
     },
     {
@@ -166,15 +180,15 @@ export function renderSectionSummary(audit) {
               <div class="eyebrow">${renderHelpLabel(SECTION_LABELS[sectionKey])}</div>
               <h2 class="section-title">${section.score}/${section.maxScore} ${renderHelpTip("Section score")}</h2>
             </div>
-            <span class="section-badge">${progress}% ${renderHelpTip("Section progress")}</span>
+            <span class="section-badge">${progress}%</span>
           </div>
           <div class="progress-track" aria-hidden="true">
             <div class="progress-bar" style="width: ${progress}%;"></div>
           </div>
           <div class="meta-row">
-            <span class="muted">${issues.length} issues ${renderHelpTip("Issues")}</span>
-            ${insights.length ? `<span class="muted">${insights.length} insights ${renderHelpTip("Insights")}</span>` : ""}
-            <span class="muted">${passedChecks.length} passed checks ${renderHelpTip("Passed checks")}</span>
+            <span class="muted">${issues.length} issues</span>
+            ${insights.length ? `<span class="muted">${insights.length} insights</span>` : ""}
+            <span class="muted">${passedChecks.length} passed checks</span>
           </div>
           <ul class="section-highlights">${highlightsMarkup}${insightMarkup}</ul>
         </section>

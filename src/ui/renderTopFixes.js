@@ -1,5 +1,5 @@
 import { escapeHtml } from "./escapeHtml.js";
-import { renderHelpLabel, renderHelpTip } from "./helpText.js";
+import { renderHelpTip } from "./helpText.js";
 import { renderInteractiveValue } from "./renderInteractiveValue.js";
 
 function getImpactClass(scoreImpact) {
@@ -37,9 +37,9 @@ export function renderTopFixes(topFixes) {
             return `
               <article class="fix-item">
                 <h3 class="fix-title">Issue: ${escapeHtml(issue.title)}</h3>
-                <p><strong>${renderHelpLabel("Evidence")}:</strong> ${renderInteractiveValue(issue.evidence || "Detected directly from current-page signals.")}</p>
-                <p><strong>${renderHelpLabel("Why it matters")}:</strong> ${renderInteractiveValue(issue.whyItMatters || "")}</p>
-                <p><strong>${renderHelpLabel("Fix")}:</strong> ${renderInteractiveValue(issue.fix || issue.recommendation)}</p>
+                <p><strong>Evidence:</strong> ${renderInteractiveValue(issue.evidence || "Detected directly from current-page signals.")}</p>
+                <p><strong>Why it matters:</strong> ${renderInteractiveValue(issue.whyItMatters || "")}</p>
+                <p><strong>Fix:</strong> ${renderInteractiveValue(issue.fix || issue.recommendation)}</p>
                 <div class="meta-row">
                   <span class="impact-badge impact-badge--${getImpactClass(issue.scoreImpact)}">Impact: -${issue.scoreImpact} points ${renderHelpTip("Impact")}</span>
                   <span class="confidence-badge confidence-badge--${getConfidenceClass(confidence)}">Confidence: ${escapeHtml(confidence)} ${renderHelpTip("Confidence")}</span>
@@ -53,7 +53,7 @@ export function renderTopFixes(topFixes) {
 
   return `
     <section class="top-fixes">
-      <div class="eyebrow">${renderHelpLabel("Top 3 Fixes")}</div>
+      <div class="eyebrow">Top 3 Fixes</div>
       <p class="muted">Top fixes are based on detected page signals and confidence.</p>
       <div class="top-fixes__list">${body}</div>
     </section>

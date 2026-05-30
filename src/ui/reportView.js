@@ -1,7 +1,5 @@
 import { escapeHtml } from "./escapeHtml.js";
 import {
-  SECTION_LABELS,
-  renderDataReport,
   renderSectionSummary
 } from "./renderSections.js";
 import { renderSerpPreview } from "./renderSerpPreview.js";
@@ -10,6 +8,7 @@ import { renderRisk } from "./renderRisk.js";
 import { renderScore } from "./renderScore.js";
 import { renderHelpLabel, renderHelpTip } from "./helpText.js";
 import { renderInteractiveValue } from "./renderInteractiveValue.js";
+import { META_DESCRIPTION_THRESHOLDS, TITLE_THRESHOLDS } from "../constants/thresholds.js";
 
 function renderTable(headers, rows, options = {}) {
   const { compact = false } = options;
@@ -32,7 +31,11 @@ function renderTable(headers, rows, options = {}) {
                     .map(
                       (cell, index) => {
                         const isRowLabel = index === 0 && rowLabelHeaders.has(headers[0]);
-                        const cellMarkup = isRowLabel ? renderHelpLabel(cell) : renderInteractiveValue(cell);
+                        const cellMarkup = cell && typeof cell === "object" && cell.html
+                          ? cell.html
+                          : isRowLabel
+                            ? renderHelpLabel(cell)
+                            : renderInteractiveValue(cell);
 
                         return `<td data-label="${escapeHtml(headers[index] || "")}">${cellMarkup}</td>`;
                       }
@@ -46,6 +49,30 @@ function renderTable(headers, rows, options = {}) {
       </table>
     </div>
   `;
+}
+
+function getRangeStatus(value, thresholds) {
+  if (value >= thresholds.goodMin && value <= thresholds.goodMax) {
+    return "good";
+  }
+
+  if (value >= thresholds.warningMin && value <= thresholds.warningMax) {
+    return "warn";
+  }
+
+  return "danger";
+}
+
+function renderLengthMetric(value, thresholds, unit = "characters") {
+  const status = getRangeStatus(value, thresholds);
+  const target = thresholds.goodMin + "-" + thresholds.goodMax + " " + unit;
+
+  return {
+    html: `
+      <span class="metric-value metric-value--${status}">${renderInteractiveValue(value)}</span>
+      <span class="metric-target">Target: ${escapeHtml(target)}</span>
+    `
+  };
 }
 
 function renderValueRow(label, value) {
@@ -64,32 +91,6 @@ function renderStatBadge(label, value, modifier = "") {
       <strong>${renderInteractiveValue(value)}</strong>
     </span>
   `;
-}
-
-function getImpactClass(scoreImpact) {
-  if (scoreImpact >= 8) {
-    return "high";
-  }
-
-  if (scoreImpact >= 4) {
-    return "medium";
-  }
-
-  return "low";
-}
-
-function getConfidenceClass(confidence = "Medium") {
-  const normalized = confidence.toLowerCase();
-
-  if (normalized === "high") {
-    return "high";
-  }
-
-  if (normalized === "low") {
-    return "low";
-  }
-
-  return "medium";
 }
 
 function renderIssueCards(title, issues, emptyState) {
@@ -114,7 +115,7 @@ function renderIssueCards(title, issues, emptyState) {
                       <article class="issue issue--${issue.severity}">
                         <div class="fix-row">
                           <h3 class="fix-title">${escapeHtml(issue.title)}</h3>
-                          <span class="impact-badge impact-badge--${issue.severity}">${escapeHtml(issue.infoOnly ? "Insight" : issue.severity)} ${renderHelpTip("Severity")}</span>
+                          <span class="impact-badge impact-badge--${issue.severity}">${escapeHtml(issue.infoOnly ? "Insight" : issue.severity)}</span>
                         </div>
                         <p class="issue__text">${escapeHtml(issue.recommendation)}</p>
                         <div class="meta-row">
@@ -144,23 +145,59 @@ function getStructuredIssues(data) {
   );
 }
 
+function renderRobotsTxtSitemaps(robotsTxt) {
+  const sitemapUrls = robotsTxt.sitemapUrls || [];
+  const sitemapCount = robotsTxt.sitemapCount || 0;
+
+  if (!sitemapCount) {
+    return `
+      <div class="robots-sitemaps">
+        <div class="section-subtitle">Robots.txt sitemaps</div>
+        <div class="passed-item">No sitemap directives found in robots.txt.</div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="robots-sitemaps">
+      <div class="section-subtitle">Robots.txt sitemaps</div>
+      <div class="robots-sitemaps__summary">
+        Showing ${sitemapUrls.length} of ${sitemapCount} sitemap URL${sitemapCount === 1 ? "" : "s"} declared in robots.txt.
+      </div>
+      <div class="robots-sitemaps__list">
+        ${sitemapUrls
+          .map((url) => `<div class="robots-sitemaps__item">${renderInteractiveValue(url)}</div>`)
+          .join("")}
+      </div>
+    </div>
+  `;
+}
+
 function renderPageTab(data) {
   const pageData = data.pageData;
+  const robotsTxt = pageData.robotsTxt || {};
   const rows = [
     ["URL", pageData.url],
     ["Hostname", pageData.hostname],
     ["Title", pageData.title.text],
-    ["Title length", pageData.title.length],
+    ["Title length", renderLengthMetric(pageData.title.length, TITLE_THRESHOLDS)],
     ["Meta description", pageData.metaDescription.text],
-    ["Meta description length", pageData.metaDescription.length],
+    ["Meta description length", renderLengthMetric(pageData.metaDescription.length, META_DESCRIPTION_THRESHOLDS)],
     ["Canonical", pageData.canonical.href],
     ["Canonical exists", pageData.canonical.exists],
     ["Canonical valid", pageData.canonical.isValid],
     ["Canonical matches current URL", pageData.canonical.pointsToCurrentUrl],
-    ["Robots", pageData.robots.content],
+    ["Robots meta", pageData.robots.content],
     ["Googlebot", pageData.robots.googlebotContent],
     ["Noindex", pageData.robots.noindex],
     ["Nofollow", pageData.robots.nofollow],
+    ["Robots.txt URL", robotsTxt.url || ""],
+    ["Robots.txt status", robotsTxt.status || "not checked"],
+    ["Robots.txt HTTP status", robotsTxt.statusCode || "(unknown)"],
+    ["Robots.txt size", robotsTxt.size ? robotsTxt.size + " characters" : "(none)"],
+    ["Robots.txt allow rules", robotsTxt.allowCount || 0],
+    ["Robots.txt disallow rules", robotsTxt.disallowCount || 0],
+    ["Robots.txt sitemap directives", robotsTxt.sitemapCount || 0],
     ["Lang", pageData.technical.lang],
     ["Charset", pageData.technical.charset],
     ["Viewport", pageData.technical.viewport],
@@ -192,6 +229,7 @@ function renderPageTab(data) {
           </div>
         </div>
         ${renderTable(["Field", "Value"], rows)}
+        ${renderRobotsTxtSitemaps(robotsTxt)}
       </section>
     </div>
   `;
@@ -343,11 +381,70 @@ function renderSocialTab(data) {
         ${renderTable(["Field", "Value"], jsonLdRows, { compact: true })}
         <div class="section-subtitle">Open Graph and Twitter</div>
         ${renderTable(["Field", "Value"], socialRows, { compact: true })}
-        <div class="section-subtitle">Commercial intent</div>
+        <div class="section-subtitle">${renderHelpLabel("Commercial intent")}</div>
         <div class="value-list">
           ${renderValueRow("Detected", data.pageData.commercialIntent.detected)}
           ${renderValueRow("Matched terms", data.pageData.commercialIntent.matchedTerms)}
         </div>
+      </section>
+    </div>
+  `;
+}
+
+function renderResourcesTab(data, options = {}) {
+  const RESOURCE_DISPLAY_LIMIT = 100;
+  const { includeActions = true, showAll = Boolean(data.resourcesExpanded) } = options;
+  const resources = data.pageData.resources || {
+    html: [],
+    css: [],
+    js: [],
+    total: 0,
+    externalTotal: 0,
+    inlineTotal: 0
+  };
+  const rows = [
+    ...resources.html.map((item) => [item.type, item.kind, item.url]),
+    ...resources.css.map((item) => [item.type, item.kind, item.url]),
+    ...resources.js.map((item) => [item.type, item.kind, item.url])
+  ];
+  const visibleRows = showAll ? rows : rows.slice(0, RESOURCE_DISPLAY_LIMIT);
+  const canExpand = includeActions && !showAll && rows.length > RESOURCE_DISPLAY_LIMIT;
+  const actionsMarkup = includeActions
+    ? `
+      <div class="resource-actions">
+        ${canExpand ? '<button type="button" class="button button--secondary" data-action="show-all-resources">Show all resources</button>' : ""}
+        ${rows.length ? '<button type="button" class="button button--secondary" data-action="export-resources-csv">Export CSV</button>' : ""}
+      </div>
+    `
+    : "";
+
+  return `
+    <div class="sections">
+      <section class="section-card report-group">
+        <div class="section-row">
+          <div>
+            <div class="eyebrow">Resources</div>
+            <h2 class="section-title">Page resources</h2>
+          </div>
+        </div>
+        <p class="muted">HTML, CSS, and JavaScript resources detected from the current-page DOM. Inline resources are counted without exposing their source code.</p>
+        <div class="link-stats" aria-label="Page resource statistics">
+          ${renderStatBadge("HTML", resources.html.length)}
+          ${renderStatBadge("CSS", resources.css.length)}
+          ${renderStatBadge("JS", resources.js.length)}
+          ${renderStatBadge("External", resources.externalTotal)}
+          ${renderStatBadge("Inline", resources.inlineTotal)}
+          ${renderStatBadge("Total", resources.total)}
+        </div>
+        ${actionsMarkup}
+        ${
+          rows.length
+            ? `
+              <p class="muted">Showing ${visibleRows.length} of ${rows.length} resources.</p>
+              ${renderTable(["Type", "Kind", "Resource"], visibleRows)}
+            `
+            : '<div class="passed-item">No page resources detected.</div>'
+        }
       </section>
     </div>
   `;
@@ -360,7 +457,8 @@ function renderTabNav(activeTab) {
     ["headers", "Headers"],
     ["images", "Images"],
     ["links", "Links"],
-    ["social", "Social"]
+    ["social", "Social"],
+    ["resources", "Resources"]
   ];
 
   return `
@@ -402,6 +500,10 @@ function renderActiveTab(data, activeTab) {
 
   if (activeTab === "social") {
     return renderSocialTab(data);
+  }
+
+  if (activeTab === "resources") {
+    return renderResourcesTab(data);
   }
 
   return `
@@ -501,7 +603,12 @@ export const PRINTABLE_REPORT_STYLES = `
     gap: 16px;
   }
   .card,
+  .print-tab,
   .report-panel,
+  .score-card,
+  .risk-card,
+  .serp-preview,
+  .top-fixes,
   .section-card {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -613,7 +720,11 @@ export const PRINTABLE_REPORT_STYLES = `
   }
   .list,
   .report-list,
+  .report-stack,
   .sections,
+  .top-fixes,
+  .top-fixes__list,
+  .print-tab,
   .value-list {
     display: grid;
     gap: 10px;
@@ -649,6 +760,142 @@ export const PRINTABLE_REPORT_STYLES = `
   }
   .value-label { font-weight: 700; }
   .value-value { word-break: break-word; }
+  .metric-value {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-weight: 800;
+  }
+  .metric-value--good {
+    color: #0f9f6e;
+    background: rgba(15, 159, 110, 0.1);
+  }
+  .metric-value--warn {
+    color: #d97706;
+    background: rgba(217, 119, 6, 0.12);
+  }
+  .metric-value--danger {
+    color: #dc2626;
+    background: rgba(220, 38, 38, 0.1);
+  }
+  .metric-target {
+    display: block;
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.35;
+  }
+  .table-shell {
+    margin-top: 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--surface-alt);
+  }
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+  .data-table th,
+  .data-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .data-table th {
+    background: #f4f7fc;
+    color: var(--muted);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .data-table tr:last-child td {
+    border-bottom: 0;
+  }
+  .link-stats,
+  .resource-actions,
+  .heading-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .stat-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 30px;
+    padding: 5px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: #f4f7fc;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .stat-badge strong {
+    color: var(--text);
+    font-weight: 800;
+  }
+  .stat-badge--internal {
+    border-color: rgba(15, 159, 110, 0.22);
+    background: rgba(15, 159, 110, 0.08);
+  }
+  .stat-badge--external {
+    border-color: rgba(37, 99, 235, 0.22);
+    background: rgba(37, 99, 235, 0.08);
+  }
+  .stat-badge--warning {
+    border-color: rgba(217, 119, 6, 0.24);
+    background: rgba(217, 119, 6, 0.1);
+  }
+  .badge--good {
+    color: #0f9f6e;
+    background: rgba(15, 159, 110, 0.1);
+  }
+  .badge--warn {
+    color: #d97706;
+    background: rgba(217, 119, 6, 0.12);
+  }
+  .badge--danger {
+    color: #dc2626;
+    background: rgba(220, 38, 38, 0.1);
+  }
+  .robots-sitemaps {
+    margin-top: 12px;
+  }
+  .robots-sitemaps__summary {
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .robots-sitemaps__list {
+    display: grid;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface-alt);
+    overflow: hidden;
+  }
+  .robots-sitemaps__item {
+    min-width: 0;
+    padding: 6px 8px;
+    border-radius: 8px;
+    background: var(--surface);
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .robots-sitemaps__item .value-link {
+    display: block;
+  }
   .value-link {
     position: relative;
     display: inline;
@@ -727,6 +974,8 @@ export const PRINTABLE_REPORT_STYLES = `
     margin: 0;
     font-size: 18px;
   }
+  .badge,
+  .risk-badge,
   .pill,
   .section-badge,
   .impact-badge,
@@ -829,11 +1078,62 @@ export const PRINTABLE_REPORT_STYLES = `
   .issue__text {
     color: var(--muted);
   }
+  .score-row,
+  .risk-row,
+  .section-row,
+  .fix-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .score-number {
+    font-size: 44px;
+    font-weight: 800;
+    line-height: 1;
+    margin: 8px 0 6px;
+  }
+  .score-card,
+  .risk-card,
+  .top-fixes,
+  .serp-preview,
+  .section-card {
+    box-shadow: none;
+  }
+  .print-tab {
+    page-break-inside: auto;
+    break-inside: auto;
+  }
+  .print-tab + .print-tab {
+    margin-top: 16px;
+  }
+  .print-tab__title {
+    margin: 0;
+    font-size: 22px;
+  }
+  .print-tab .button {
+    display: none;
+  }
   @media print {
     body { background: white; }
     .page-header { display: none; }
-    .wrap { max-width: none; }
-    .image-preview { display: none; }
+    .wrap {
+      display: block;
+      max-width: none;
+    }
+    .print-tab {
+      margin-bottom: 16px;
+      break-inside: auto;
+      page-break-inside: auto;
+    }
+    .print-tab + .print-tab {
+      break-before: page;
+      page-break-before: always;
+    }
+    .help-tip,
+    .image-preview {
+      display: none;
+    }
   }
   @media (max-width: 900px) {
     .grid,
@@ -850,112 +1150,19 @@ export const PRINTABLE_REPORT_STYLES = `
   }
 `;
 
+function renderPrintableTab(title, markup) {
+  return `
+    <section class="print-tab">
+      <div>
+        <div class="eyebrow">Report section</div>
+        <h2 class="print-tab__title">${escapeHtml(title)}</h2>
+      </div>
+      ${markup}
+    </section>
+  `;
+}
+
 export function buildPrintableReport(data) {
-  const sectionCards = Object.entries(data.audit.sections)
-    .map(([key, section]) => {
-      const progress = section.maxScore > 0 ? Math.round((section.score / section.maxScore) * 100) : 0;
-      const issues = section.issues.filter((item) => !item.passed && !item.infoOnly);
-      const insights = section.issues.filter((item) => !item.passed && item.infoOnly);
-      const passedChecks = section.issues.filter((item) => item.passed);
-
-      return `
-        <section class="report-panel">
-          <div class="report-panel__header">
-            <div>
-              <div class="eyebrow">${renderHelpLabel(SECTION_LABELS[key] || key)}</div>
-              <h3 class="panel-title">${section.score}/${section.maxScore} ${renderHelpTip("Section score")}</h3>
-            </div>
-            <div class="pill">${progress}% ${renderHelpTip("Section progress")}</div>
-          </div>
-          <div class="progress-track"><div class="progress-bar" style="width:${progress}%;"></div></div>
-          <div class="panel-meta">
-            <span>${issues.length} issues ${renderHelpTip("Issues")}</span>
-            ${insights.length ? `<span>${insights.length} insights ${renderHelpTip("Insights")}</span>` : ""}
-            <span>${passedChecks.length} passed ${renderHelpTip("Passed checks")}</span>
-          </div>
-          <div class="report-list">
-            ${
-              issues.length
-                  ? issues
-                    .map(
-                      (item) => `
-                        <div class="report-item">
-                          <div class="report-item__title">${escapeHtml(item.title)}</div>
-                          <div class="panel-meta">
-                            <span class="impact-badge impact-badge--${item.severity}">Impact: -${item.scoreImpact} points ${renderHelpTip("Impact")}</span>
-                          </div>
-                          <div>${escapeHtml(item.recommendation)}</div>
-                        </div>
-                      `
-                    )
-                    .join("")
-                : '<div class="report-item"><div class="report-item__title">No unresolved issues.</div></div>'
-            }
-            ${
-              insights.length
-                ? insights
-                    .map(
-                      (item) => `
-                        <div class="report-item">
-                          <div class="report-item__title">Insight: ${escapeHtml(item.title)}</div>
-                          <div class="report-item__meta">No score loss</div>
-                          <div>${escapeHtml(item.recommendation)}</div>
-                        </div>
-                      `
-                    )
-                    .join("")
-                : ""
-            }
-          </div>
-        </section>
-      `;
-    })
-    .join("");
-
-  const dataGroups = renderDataReport(data.pageData);
-  const insightRows = [
-    ["Risk type", data.risk.category || "(none)"],
-    ["Content depth", data.audit.insights ? data.audit.insights.contentDepth : "(unknown)"],
-    ["Contextual internal links", data.audit.insights ? data.audit.insights.contextualInternalLinks : 0],
-    ["URL length", data.audit.insights ? data.audit.insights.urlLength : 0],
-    ["Generic anchors", data.pageData.links.genericAnchorCount],
-    ["Long paragraphs", data.pageData.readability.longParagraphs],
-    ["Generic image filenames", data.pageData.images.genericFilenameCount],
-    ["Images without dimensions", data.pageData.images.missingDimensionsCount]
-  ];
-  const pageRows = [
-    ["Title", data.pageData.title.text],
-    ["Meta description", data.pageData.metaDescription.text],
-    ["Canonical", data.pageData.canonical.href],
-    ["Robots", data.pageData.robots.content],
-    ["Viewport", data.pageData.technical.viewport],
-    ["URL reflects topic", data.pageData.urlSignals.reflectsTopic]
-  ];
-  const contentRows = [
-    ["H1 count", data.pageData.h1.count],
-    ["Total headings", data.pageData.headings.total],
-    ["Skipped level examples", data.pageData.headings.skipExamples.join(", ") || "(none)"],
-    ["Content depth", data.pageData.readability.contentDepth],
-    ["Word count", data.pageData.readability.totalWords],
-    ["Long paragraphs", data.pageData.readability.longParagraphs]
-  ];
-  const linkRows = [
-    ["Total links", data.pageData.links.total],
-    ["Internal links", data.pageData.links.internal],
-    ["Contextual internal links", data.pageData.links.contextualInternal],
-    ["External links", data.pageData.links.external],
-    ["Placeholder links", data.pageData.links.placeholders],
-    ["Generic anchors", data.pageData.links.genericAnchorCount]
-  ];
-  const socialRows = [
-    ["JSON-LD blocks", data.pageData.jsonLd.count],
-    ["Schema types", data.pageData.jsonLd.types.join(", ") || "(none)"],
-    ["OG title", data.pageData.openGraph.title],
-    ["OG description", data.pageData.openGraph.description],
-    ["Twitter card", data.pageData.twitter.card],
-    ["Twitter title", data.pageData.twitter.title]
-  ];
-
   return `
     <header class="page-header">
       <div class="page-header__meta">
@@ -971,107 +1178,23 @@ export function buildPrintableReport(data) {
       </div>
     </header>
     <main class="wrap">
-          <section class="card">
-            <div class="summary-header">
-              <div>
-                <div class="eyebrow">Summary</div>
-                <h2 class="section-title">Current-page summary</h2>
-                <div class="muted">This report is based on the current page only. It does not crawl an entire domain.</div>
-              </div>
-              <div class="pill">${escapeHtml(data.audit.scoreLabel)} ${renderHelpTip("Score label")}</div>
-            </div>
-            <div class="report-score-grid">
-              <div class="report-kpi">
-                <div class="report-panel__header">
-                  <div class="eyebrow">${renderHelpLabel("SEO Score")}</div>
-                  <div class="pill">${escapeHtml(data.audit.scoreLabel)} ${renderHelpTip("Score label")}</div>
-                </div>
-                <div class="report-kpi__value">${data.audit.score}</div>
-                <div class="progress-track"><div class="progress-bar" style="width:${data.audit.score}%;"></div></div>
-              </div>
-              <div class="report-kpi">
-                <div class="report-panel__header">
-                  <div class="eyebrow">${renderHelpLabel("Traffic Risk")}</div>
-                  <div class="pill risk-badge--${data.risk.level.toLowerCase()}">${escapeHtml(data.risk.level)} ${renderHelpTip("Traffic Risk")}</div>
-                </div>
-                <div class="muted">${renderHelpLabel("Risk type")}: ${escapeHtml(data.risk.category || "No material risk")}</div>
-                <div class="report-kpi__subtitle">${escapeHtml(data.risk.reason)}</div>
-                <div class="muted">Traffic Risk is a heuristic priority label for organic visibility, snippets, clicks, and common publishing issues. It is not a revenue estimate or ROI forecast.</div>
-              </div>
-            </div>
-          </section>
-
-          <section class="card">
-            <h2 class="section-title">Quick Signals</h2>
-            ${renderTable(["Signal", "Value"], insightRows)}
-          </section>
-
-          <section class="card">
-            <h2 class="section-title">Top Fixes</h2>
-            <div class="list">
-              ${
-                data.topFixes.length
-                  ? data.topFixes
-                      .map(
-                        (issue) => `
-                          <div class="item">
-                            <h3>Issue: ${escapeHtml(issue.title)}</h3>
-                            <div><strong>${renderHelpLabel("Evidence")}:</strong> ${renderInteractiveValue(issue.evidence || "Detected directly from current-page signals.")}</div>
-                            <div><strong>${renderHelpLabel("Why it matters")}:</strong> ${renderInteractiveValue(issue.whyItMatters || "")}</div>
-                            <div><strong>${renderHelpLabel("Fix")}:</strong> ${renderInteractiveValue(issue.fix || issue.recommendation)}</div>
-                            <div class="panel-meta">
-                              <span class="impact-badge impact-badge--${getImpactClass(issue.scoreImpact)}">Impact: -${issue.scoreImpact} points ${renderHelpTip("Impact")}</span>
-                              <span class="confidence-badge confidence-badge--${getConfidenceClass(issue.confidence || "Medium")}">Confidence: ${escapeHtml(issue.confidence || "Medium")} ${renderHelpTip("Confidence")}</span>
-                            </div>
-                          </div>
-                        `
-                      )
-                      .join("")
-                  : '<div class="item"><h3>No major issues</h3><div>No critical fixes found in this quick current-page check. No more high-priority fixes found in this quick current-page check.</div></div>'
-              }
-            </div>
-          </section>
-
-          <section class="card">
-            <h2 class="section-title">SERP Preview</h2>
-            <div class="serp-card">
-              ${renderInteractiveValue(data.serpPreview.url)}
-              <h3>${escapeHtml(data.serpPreview.title)}</h3>
-              <div>${escapeHtml(data.serpPreview.description)}</div>
-            </div>
-          </section>
-
-          <section class="card">
-            <h2 class="section-title">Section Breakdown</h2>
-            <div class="report-sections">
-              ${sectionCards}
-            </div>
-          </section>
-
-          <section class="card">
-            <h2 class="section-title">Page Evidence</h2>
-            ${renderTable(["Field", "Value"], pageRows, { compact: true })}
-          </section>
-
-          <section class="card">
-            <h2 class="section-title">Content Evidence</h2>
-            ${renderTable(["Field", "Value"], contentRows, { compact: true })}
-          </section>
-
-          <section class="card">
-            <h2 class="section-title">Links Evidence</h2>
-            ${renderTable(["Field", "Value"], linkRows, { compact: true })}
-          </section>
-
-          <section class="card">
-            <h2 class="section-title">Schema and Secondary Evidence</h2>
-            ${renderTable(["Field", "Value"], socialRows, { compact: true })}
-          </section>
-
-          <section class="card raw-data">
-            <h2 class="section-title">Raw Data</h2>
-            ${dataGroups}
-          </section>
+      ${renderPrintableTab(
+        "Summary",
+        `
+          <div class="muted">This report is based on the current page only. It does not crawl an entire domain.</div>
+          <div class="report-summary">
+            ${renderScore(data.audit)}
+            ${renderRisk(data.risk)}
+          </div>
+          ${renderActiveTab(data, "overview")}
+        `
+      )}
+      ${renderPrintableTab("Meta", renderPageTab(data))}
+      ${renderPrintableTab("Headers", renderContentTab(data))}
+      ${renderPrintableTab("Images", renderImagesTab(data))}
+      ${renderPrintableTab("Links", renderLinksTab(data))}
+      ${renderPrintableTab("Social", renderSocialTab(data))}
+      ${renderPrintableTab("Resources", renderResourcesTab(data, { includeActions: false, showAll: false }))}
     </main>
   `;
 }

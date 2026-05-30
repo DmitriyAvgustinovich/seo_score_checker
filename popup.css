@@ -440,6 +440,10 @@ body::before {
   table-layout: fixed;
 }
 
+.report-group .data-table {
+  min-width: 0;
+}
+
 .data-table th,
 .data-table td {
   padding: 10px var(--space-md);
@@ -499,6 +503,13 @@ body::before {
 }
 
 .link-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+.resource-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-sm);
@@ -612,6 +623,38 @@ body::before {
 
 .value-value {
   word-break: break-word;
+}
+
+.metric-value {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-weight: 800;
+}
+
+.metric-value--good {
+  color: var(--good);
+  background: rgba(15, 159, 110, 0.1);
+}
+
+.metric-value--warn {
+  color: var(--warn);
+  background: rgba(217, 119, 6, 0.12);
+}
+
+.metric-value--danger {
+  color: var(--danger);
+  background: rgba(220, 38, 38, 0.1);
+}
+
+.metric-target {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .value-link {
@@ -736,6 +779,51 @@ body::before {
 .raw-values code {
   font-size: 11px;
   white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.robots-sitemaps {
+  margin-top: var(--space-md);
+}
+
+.robots-sitemaps__summary {
+  margin-top: var(--space-sm);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.robots-sitemaps__list {
+  display: grid;
+  gap: var(--space-xs);
+  margin-top: var(--space-sm);
+  padding: var(--space-sm);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-alt);
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.robots-sitemaps__item {
+  min-width: 0;
+  max-width: 100%;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--surface);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.robots-sitemaps__item .value-link {
+  display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.robots-sitemaps__item .value-link__text {
+  overflow-wrap: anywhere;
   word-break: break-word;
 }
 

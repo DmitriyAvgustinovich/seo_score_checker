@@ -2,6 +2,36 @@ import { escapeHtml } from "./escapeHtml.js";
 
 const DEFAULT_HELP_TEXT = "Detected current-page value for this SEO signal.";
 
+const HELP_ENABLED_LABELS = new Set([
+  "seo score",
+  "traffic risk",
+  "section score",
+  "impact",
+  "confidence",
+  "canonical",
+  "canonical url",
+  "canonical exists",
+  "canonical valid",
+  "canonical matches current url",
+  "canonical points to current url",
+  "robots.txt",
+  "robots.txt url",
+  "robots.txt status",
+  "robots.txt sitemap directives",
+  "noindex",
+  "json-ld blocks",
+  "valid json-ld",
+  "valid json-ld blocks",
+  "invalid json-ld",
+  "invalid json-ld blocks",
+  "missing alt ratio",
+  "placeholder links",
+  "placeholder",
+  "commercial intent",
+  "commercial intent detected",
+  "commercial intent terms"
+]);
+
 const HELP_TEXTS = {
   "seo score": "Overall current-page SEO score from the checks in this extension. Higher is better.",
   "score label": "Readable quality band for the numeric SEO score.",
@@ -49,6 +79,11 @@ const HELP_TEXTS = {
   "canonical points to current url": "Whether the canonical points to this exact current page URL.",
   "robots": "Robots meta tag content that can allow or block indexing and following links.",
   "robots content": "Robots meta tag content that can allow or block indexing and following links.",
+  "robots meta": "Robots meta tag content on the current page, not the site-level robots.txt file.",
+  "robots.txt": "Site-level robots.txt file fetched from the current origin.",
+  "robots.txt url": "The robots.txt URL checked for the current origin.",
+  "robots.txt status": "Whether the current origin returned a readable robots.txt file.",
+  "robots.txt sitemap directives": "Sitemap URLs declared inside robots.txt.",
   "googlebot": "Googlebot-specific robots directives, if present.",
   "googlebot content": "Googlebot-specific robots directives, if present.",
   "noindex": "Whether the page asks search engines not to index it.",
@@ -123,6 +158,7 @@ const HELP_TEXTS = {
   "twitter title": "Twitter/X title used in shared-link previews.",
   "twitter description": "Twitter/X description used in shared-link previews.",
   "twitter image": "Twitter/X image used in shared-link previews.",
+  "commercial intent": "Detected buying, pricing, demo, or conversion intent signals on the current page.",
   "commercial intent detected": "Whether buying, pricing, demo, or conversion intent terms were detected.",
   "commercial intent terms": "Matched terms that suggest commercial or transactional intent.",
   "detected": "Whether this signal was detected on the current page.",
@@ -148,5 +184,12 @@ export function renderHelpTip(label, helpText) {
 }
 
 export function renderHelpLabel(label, helpText) {
-  return `<span class="label-with-help"><span>${escapeHtml(label)}</span>${renderHelpTip(label, helpText)}</span>`;
+  const normalized = normalizeHelpKey(label);
+  const safeLabel = escapeHtml(label);
+
+  if (!HELP_ENABLED_LABELS.has(normalized)) {
+    return safeLabel;
+  }
+
+  return `<span class="label-with-help"><span>${safeLabel}</span>${renderHelpTip(label, helpText)}</span>`;
 }

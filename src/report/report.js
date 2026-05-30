@@ -3,12 +3,14 @@ import { buildPrintableReport, PRINTABLE_REPORT_STYLES } from "../ui/reportView.
 function parseReportPayload() {
   try {
     const rawHash = window.location.hash || "";
-    if (!rawHash.startsWith("#data=")) {
-      return null;
+
+    if (rawHash.startsWith("#data=")) {
+      const json = decodeURIComponent(rawHash.slice("#data=".length));
+      return JSON.parse(json);
     }
 
-    const json = decodeURIComponent(rawHash.slice("#data=".length));
-    return JSON.parse(json);
+    const storedPayload = localStorage.getItem("seoScoreCheckerReportData");
+    return storedPayload ? JSON.parse(storedPayload) : null;
   } catch (error) {
     console.error("SEO Score Checker: could not parse report payload.", error);
     return null;

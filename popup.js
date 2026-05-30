@@ -71,6 +71,27 @@ function bindActions() {
     });
   });
 
+  appRoot.querySelectorAll("[data-action='show-all-resources']").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (currentState.status !== "success" || !currentState.data) {
+        return;
+      }
+
+      setState({
+        data: {
+          ...currentState.data,
+          resourcesExpanded: true
+        }
+      });
+    });
+  });
+
+  appRoot.querySelectorAll("[data-action='export-resources-csv']").forEach((button) => {
+    button.addEventListener("click", () => {
+      exportResourcesCsv();
+    });
+  });
+
   appRoot.querySelectorAll("[data-action='open-resource-link']").forEach((link) => {
     link.addEventListener("click", (event) => {
       event.preventDefault();
@@ -167,8 +188,8 @@ async function exportPdf() {
   }
 
   try {
-    const payload = encodeURIComponent(JSON.stringify(currentState.data));
-    const reportUrl = chrome.runtime.getURL("src/report/report.html") + "#data=" + payload;
+    localStorage.setItem("seoScoreCheckerReportData", JSON.stringify(currentState.data));
+    const reportUrl = chrome.runtime.getURL("src/report/report.html");
     await chrome.tabs.create({ url: reportUrl });
   } catch (error) {
     console.error("SEO Score Checker: export failed.", error);
@@ -219,6 +240,59 @@ function exportLinksCsv() {
     URL.revokeObjectURL(url);
   } catch (error) {
     console.error("SEO Score Checker: CSV export failed.", error);
+  }
+}
+
+function exportResourcesCsv() {
+  if (currentState.status !== "success" || !currentState.data) {
+    return;
+  }
+
+  try {
+    const resources = currentState.data.pageData.resources || {
+      html: [],
+      css: [],
+      js: []
+    };
+    const rows = [
+      ...resources.html,
+      ...resources.css,
+      ...resources.js
+    ];
+    const headers = ["Type", "Kind", "Resource"];
+    const escapeCsv = (value) => {
+      const normalized = String(value ?? "");
+      if (normalized.includes(",") || normalized.includes('"') || normalized.includes("\n")) {
+        return '"' + normalized.replaceAll('"', '""') + '"';
+      }
+
+      return normalized;
+    };
+
+    const csv = [
+      headers.join(","),
+      ...rows.map((item) =>
+        [
+          item.type,
+          item.kind,
+          item.url
+        ]
+          .map(escapeCsv)
+          .join(",")
+      )
+    ].join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = (currentState.data.pageData.hostname || "page") + "-resources.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error("SEO Score Checker: resources CSV export failed.", error);
   }
 }
 
