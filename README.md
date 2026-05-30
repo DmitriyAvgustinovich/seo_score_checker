@@ -23,7 +23,7 @@ The first screen shows:
 - `SERP Preview`
 - `Section Breakdown`
 
-`Traffic Risk` is a heuristic priority label for organic visibility, snippets, clicks, and common publishing issues. It is not a revenue estimate or ROI forecast.
+`Traffic Risk` is a heuristic priority label based on detected page issues. It is not a revenue estimate, ranking forecast, or traffic prediction.
 
 ## Architecture
 
@@ -72,12 +72,12 @@ Analysis is user-triggered by opening/clicking the extension popup.
 4. `src/content/content.js` collects DOM-derived `pageData`.
 5. The popup computes:
    - `scorePage(pageData)`
-   - `calculateRevenueRisk(audit.issues, pageData)` internally
+   - `calculateTrafficRisk(audit.issues, pageData)` internally
    - `getTopFixes(audit.issues, pageData)`
    - `buildSerpPreview(pageData)`
 6. The UI renders the current-page report.
 
-Internal function names may still include `revenueRisk`; visible UI uses `Traffic Risk`.
+Internal risk code uses `trafficRisk`; visible UI uses `Traffic Risk`.
 
 ## DOM Signals Collected
 
@@ -98,8 +98,9 @@ Internal function names may still include `revenueRisk`; visible UI uses `Traffi
 - URL length/path/query/topic signals
 - lightweight paragraph/readability signals
 - commercial-intent heuristic from URL/title/H1/body snippet
+- informational page resource counts
 
-It does not store full page HTML, crawl links, fetch linked pages, or send DOM data to a server.
+It does not store full page HTML, store inline script source, crawl links, fetch linked pages, or send DOM data to a server.
 
 ## SEO Score Formula
 
@@ -118,6 +119,7 @@ SEO Score =
 ```
 
 Each section is clamped to its own maximum. The total is clamped to `0..100`.
+Critical page-level issues also cap the final score so the grade cannot look overly healthy when a blocking signal exists.
 
 ### Section Weights
 
@@ -139,6 +141,18 @@ Each section is clamped to its own maximum. The total is clamped to `0..100`.
 | 80-100 | Good |
 | 50-79 | Needs improvement |
 | 0-49 | Critical issues |
+
+### Critical Score Caps
+
+These caps apply after the section scores are summed:
+
+| Issue | Maximum final score |
+| --- | ---: |
+| `noindex` | 49 |
+| missing title | 69 |
+| invalid canonical | 69 |
+| canonical pointing to another URL | 74 |
+| missing H1 | 79 |
 
 ### Indexability
 
@@ -244,7 +258,7 @@ Penalties:
 - `-2` for missing `og:image`
 - `-1` for missing Twitter card basics
 
-Social metadata stays secondary and does not create high `Traffic Risk`.
+Schema and preview tags stay secondary and do not create high `Traffic Risk` by themselves.
 
 ## Diagnostic Info-Only Issues
 
@@ -358,13 +372,21 @@ Popup above the fold is score-first:
 6. SERP Preview
 7. Section Breakdown
 
+The Summary view also includes a collapsed `Score details` accordion with section weights, current section scores, score deductions, critical cap status, and informational-only signals when present.
+
 Report tabs:
 
 - `Overview`
-- `Page`
+- `Meta`
+- `Headers`
+- `Images`
 - `Links`
-- `Content`
-- `Secondary`
+- `Schema`
+- `Resources`
+
+`Resources` is informational only. Resource counts do not affect the SEO Score.
+
+`Robots.txt` is shown as a site-level reference only. It is not mixed with the page-level robots meta signal and does not affect the current-page SEO Score.
 
 ## Export
 

@@ -5,9 +5,7 @@ const DEFAULT_HELP_TEXT = "Detected current-page value for this SEO signal.";
 const HELP_ENABLED_LABELS = new Set([
   "seo score",
   "traffic risk",
-  "section score",
-  "impact",
-  "confidence",
+  "resources",
   "canonical",
   "canonical url",
   "canonical exists",
@@ -24,18 +22,20 @@ const HELP_ENABLED_LABELS = new Set([
   "valid json-ld blocks",
   "invalid json-ld",
   "invalid json-ld blocks",
-  "missing alt ratio",
   "placeholder links",
   "placeholder",
   "commercial intent",
   "commercial intent detected",
-  "commercial intent terms"
+  "commercial intent terms",
+  "missing alt percentage",
+  "generic image filenames",
+  "images without dimensions"
 ]);
 
 const HELP_TEXTS = {
-  "seo score": "Overall current-page SEO score from the checks in this extension. Higher is better.",
+  "seo score": "A 0-100 score for the current open page based on the checks in this extension. It is not a full website or domain audit.",
   "score label": "Readable quality band for the numeric SEO score.",
-  "traffic risk": "Heuristic priority label for organic visibility, snippets, clicks, and common publishing issues.",
+  "traffic risk": "A heuristic priority label based on detected page issues. It is not a revenue estimate, ranking forecast, or traffic prediction.",
   "risk type": "The main kind of SEO risk currently driving the Traffic Risk label.",
   "serp preview": "Approximate Google result preview based on the detected title, description, and URL.",
   "top 3 fixes": "Highest-priority fixes selected from detected issues, score impact, and confidence.",
@@ -59,10 +59,11 @@ const HELP_TEXTS = {
   "metadata": "Title and meta description signals used by search engines and snippets.",
   "headings": "Heading structure and content organization on the page.",
   "technical basics": "Basic technical tags that affect rendering, language, and parsing.",
-  "schema": "Structured data signals, mainly JSON-LD blocks found on the page.",
-  "images": "Image signals such as alt text, filenames, and dimensions.",
+  "schema": "Checks JSON-LD structured data on the current page. Missing schema may be a small signal; invalid schema is more important when structured data is expected.",
+  "images": "Counts meaningful images and alt text coverage. Hidden, decorative, or tiny images are ignored where possible.",
   "links": "Internal, external, placeholder, and anchor text signals.",
   "secondary insights": "Social preview tags and secondary intent signals.",
+  "resources": "Scripts, stylesheets, and HTML resources detected on the current page. Informational only; these counts do not affect the SEO Score.",
 
   "page url": "The full URL of the current page being audited.",
   "url": "The full detected URL for this page or link.",
@@ -75,14 +76,16 @@ const HELP_TEXTS = {
   "canonical url": "Canonical URL declared by the page as the preferred version.",
   "canonical exists": "Whether a canonical link tag was found.",
   "canonical valid": "Whether the canonical URL can be parsed as a valid URL.",
-  "canonical matches current url": "Whether the canonical points to this exact current page URL.",
-  "canonical points to current url": "Whether the canonical points to this exact current page URL.",
+  "canonical matches current url": "Whether the canonical URL points to this page after basic URL normalization. A different canonical may be intentional for duplicate pages.",
+  "canonical points to current url": "Whether the canonical URL points to this page after basic URL normalization. A different canonical may be intentional for duplicate pages.",
   "robots": "Robots meta tag content that can allow or block indexing and following links.",
   "robots content": "Robots meta tag content that can allow or block indexing and following links.",
   "robots meta": "Robots meta tag content on the current page, not the site-level robots.txt file.",
-  "robots.txt": "Site-level robots.txt file fetched from the current origin.",
-  "robots.txt url": "The robots.txt URL checked for the current origin.",
-  "robots.txt status": "Whether the current origin returned a readable robots.txt file.",
+  "robots.txt": "Site-level robots.txt reference. Informational only. Not used in the current-page SEO Score.",
+  "robots.txt url": "The site-level robots.txt URL checked for the current origin. It is not a page-level robots meta signal.",
+  "robots.txt status": "Whether the current origin returned a readable robots.txt file. This is informational only.",
+  "robots.txt allow rules": "Number of Allow directives detected in robots.txt for the current origin.",
+  "robots.txt disallow rules": "Number of Disallow directives detected in robots.txt for the current origin.",
   "robots.txt sitemap directives": "Sitemap URLs declared inside robots.txt.",
   "googlebot": "Googlebot-specific robots directives, if present.",
   "googlebot content": "Googlebot-specific robots directives, if present.",
@@ -96,8 +99,8 @@ const HELP_TEXTS = {
   "url length": "Number of characters in the current URL.",
   "path depth": "Number of path segments in the URL.",
   "query params": "Number of query parameters in the URL.",
-  "slug reflects topic": "Whether the URL slug appears to include meaningful topic words.",
-  "url reflects topic": "Whether the URL slug appears to include meaningful topic words.",
+  "slug reflects topic": "A heuristic check of whether URL words overlap with the page title or H1. It is only a supporting signal.",
+  "url reflects topic": "A heuristic check of whether URL words overlap with the page title or H1. It is only a supporting signal.",
 
   "heading counts": "Count of headings by level, from H1 through H6.",
   "h1": "Top-level heading count. Most pages should have one clear H1.",
@@ -123,8 +126,9 @@ const HELP_TEXTS = {
   "images missing alt": "Meaningful images without useful alt text.",
   "missing image alts": "Meaningful images without useful alt text.",
   "missing alt ratio": "Share of meaningful images that are missing alt text.",
-  "generic image filenames": "Images with generic filenames that give weak context, such as image1.jpg.",
-  "images without dimensions": "Images without width or height attributes, which can contribute to layout shift.",
+  "missing alt percentage": "Percentage of meaningful images that are missing non-empty alt text.",
+  "generic image filenames": "Count of meaningful images whose source filename is generic, such as image1.jpg or photo-123.png, which gives weaker image context.",
+  "images without dimensions": "Count of meaningful images missing explicit width or height attributes in the HTML, which can make layout shift while images load.",
   "image": "Image source URL.",
   "alt": "Image alt text used for accessibility and image context.",
   "size": "Detected image dimensions in pixels.",
@@ -158,8 +162,8 @@ const HELP_TEXTS = {
   "twitter title": "Twitter/X title used in shared-link previews.",
   "twitter description": "Twitter/X description used in shared-link previews.",
   "twitter image": "Twitter/X image used in shared-link previews.",
-  "commercial intent": "Detected buying, pricing, demo, or conversion intent signals on the current page.",
-  "commercial intent detected": "Whether buying, pricing, demo, or conversion intent terms were detected.",
+  "commercial intent": "Detected business or conversion terms on the current page. Used only to prioritize SEO fixes, not to estimate revenue.",
+  "commercial intent detected": "Whether business or conversion terms were detected on the current page.",
   "commercial intent terms": "Matched terms that suggest commercial or transactional intent.",
   "detected": "Whether this signal was detected on the current page.",
   "matched terms": "Specific terms that matched this intent signal."
@@ -180,7 +184,7 @@ export function renderHelpTip(label, helpText) {
   const text = helpText || getHelpText(label);
   const safeText = escapeHtml(text);
 
-  return `<span class="help-tip" tabindex="0" title="${safeText}" aria-label="${safeText}" data-help="${safeText}">?</span>`;
+  return `<span class="help-tip" tabindex="0" aria-label="${safeText}" data-help="${safeText}">?</span>`;
 }
 
 export function renderHelpLabel(label, helpText) {

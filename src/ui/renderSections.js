@@ -15,15 +15,47 @@ export const SECTION_LABELS = {
 
 const SECTION_ORDER = ["indexability", "metadata", "headings", "technical", "schema", "images", "links", "secondary"];
 
+const SECTION_HELP_TEXTS = {
+  indexability:
+    "Starts at 25 points. Checks robots noindex/nofollow and canonical tag presence, validity, and whether it points to the current URL. Blocking or conflicting signals subtract points.",
+  metadata:
+    "Starts at 20 points. Checks title and meta description presence plus healthy length ranges. Missing tags cost more; weak lengths subtract smaller penalties.",
+  headings:
+    "Starts at 15 points. Checks for an H1, whether there is only one H1, and whether heading levels skip unexpectedly. Structure issues subtract points.",
+  technical:
+    "Starts at 10 points. Checks viewport responsiveness, HTML language, and charset signals collected from page metadata. Missing basics subtract points.",
+  schema:
+    "Starts at 8 points. Checks JSON-LD structured data on the current page. Missing schema may be a small signal; invalid schema is more important when structured data is expected.",
+  images:
+    "Starts at 10 points. Counts meaningful images and alt text coverage. Hidden, decorative, or tiny images are ignored where possible.",
+  links:
+    "Starts at 5 points. Counts total, internal, external, placeholder links, contextual internal links, and generic anchors. Placeholder links and weak internal linking subtract points.",
+  secondary:
+    "Starts at 7 points. Checks Open Graph and Twitter/X preview tags used for shared-link previews. Missing title, description, image, or card basics subtract points."
+};
+
+const SECTION_BREAKDOWN_HELP =
+  "Each section starts from its maximum points and loses points for detected issues. The percentage is section score divided by maximum score; insights are shown for context but do not reduce score.";
+
 function formatSeverityLabel(severity) {
   return severity ? severity.charAt(0).toUpperCase() + severity.slice(1) : "Low";
+}
+
+function formatPercentage(value) {
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue)) {
+    return "(missing)";
+  }
+
+  return Number((numericValue * 100).toFixed(1)) + "%";
 }
 
 function renderIssueCard(issue) {
   const badgeLabel = issue.infoOnly ? "Insight" : formatSeverityLabel(issue.severity);
   const scoreMeta = issue.infoOnly
     ? '<span class="muted">Diagnostic insight, no score loss</span>'
-    : `<span class="impact-badge impact-badge--${issue.severity}">Impact: -${issue.scoreImpact} points ${renderHelpTip("Impact")}</span>`;
+    : `<span class="impact-badge impact-badge--${issue.severity}">Impact: -${issue.scoreImpact} points</span>`;
 
   return `
     <article class="issue issue--${issue.severity}">
@@ -50,6 +82,13 @@ function renderValueRow(label, value) {
       <div class="value-value">${renderInteractiveValue(value)}</div>
     </div>
   `;
+}
+
+function renderSectionSummaryLabel(sectionKey) {
+  const label = SECTION_LABELS[sectionKey] || sectionKey;
+  const helpText = SECTION_HELP_TEXTS[sectionKey] || SECTION_BREAKDOWN_HELP;
+
+  return `<span class="label-with-help"><span>${escapeHtml(label)}</span>${renderHelpTip(label, helpText)}</span>`;
 }
 
 function getDataGroups(pageData) {
@@ -126,7 +165,7 @@ function getDataGroups(pageData) {
         ["Total images", pageData.images.total],
         ["Meaningful images", pageData.images.meaningfulTotal],
         ["Images missing alt", pageData.images.missingAlt],
-        ["Missing alt ratio", pageData.images.missingAltRatio],
+        ["Missing alt percentage", formatPercentage(pageData.images.missingAltRatio)],
         ["Total links", pageData.links.total],
         ["Internal links", pageData.links.internal],
         ["External links", pageData.links.external],
@@ -177,8 +216,8 @@ export function renderSectionSummary(audit) {
         <section class="section-card section-summary-card">
           <div class="section-row">
             <div>
-              <div class="eyebrow">${renderHelpLabel(SECTION_LABELS[sectionKey])}</div>
-              <h2 class="section-title">${section.score}/${section.maxScore} ${renderHelpTip("Section score")}</h2>
+              <div class="eyebrow">${renderSectionSummaryLabel(sectionKey)}</div>
+              <h2 class="section-title">${section.score}/${section.maxScore}</h2>
             </div>
             <span class="section-badge">${progress}%</span>
           </div>
@@ -197,7 +236,12 @@ export function renderSectionSummary(audit) {
 
   return `
     <section class="section-block">
-      <div class="eyebrow">${renderHelpLabel("Section Breakdown")}</div>
+      <div class="eyebrow">
+        <span class="label-with-help">
+          <span>Section Breakdown</span>
+          ${renderHelpTip("Section Breakdown", SECTION_BREAKDOWN_HELP)}
+        </span>
+      </div>
       <div class="sections">${sectionsMarkup}</div>
     </section>
   `;
@@ -218,7 +262,7 @@ export function renderIssuesReport(audit) {
             <div class="eyebrow">${renderHelpLabel(SECTION_LABELS[sectionKey])}</div>
             <h2 class="section-title">${issues.length} issue${issues.length === 1 ? "" : "s"}</h2>
           </div>
-          <span class="section-badge">${section.score}/${section.maxScore} ${renderHelpTip("Section score")}</span>
+          <span class="section-badge">${section.score}/${section.maxScore}</span>
         </div>
         <div class="issue-list">${issueMarkup}</div>
       </section>
@@ -248,7 +292,7 @@ export function renderPassedReport(audit) {
             <div class="eyebrow">${renderHelpLabel(SECTION_LABELS[sectionKey])}</div>
             <h2 class="section-title">${passedChecks.length} passed</h2>
           </div>
-          <span class="section-badge">${section.score}/${section.maxScore} ${renderHelpTip("Section score")}</span>
+          <span class="section-badge">${section.score}/${section.maxScore}</span>
         </div>
         <div class="passed-checks">${passedMarkup}</div>
       </section>

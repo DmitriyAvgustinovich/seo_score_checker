@@ -1,4 +1,6 @@
 import { buildPrintableReport, PRINTABLE_REPORT_STYLES } from "../ui/reportView.js";
+import { buildMarkdownReport } from "../ui/reportMarkdown.js";
+import { bindHelpTooltips } from "../ui/tooltipPlacement.js";
 
 function parseReportPayload() {
   try {
@@ -26,6 +28,38 @@ function renderMissingState() {
   `;
 }
 
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  textarea.remove();
+}
+
+function showButtonFeedback(button, label) {
+  if (!button) {
+    return;
+  }
+
+  const originalLabel = button.dataset.originalLabel || button.textContent || "";
+  button.dataset.originalLabel = originalLabel;
+  button.textContent = label;
+  window.setTimeout(() => {
+    if (button.isConnected) {
+      button.textContent = originalLabel;
+    }
+  }, 1200);
+}
+
 function hydrateReport() {
   const data = parseReportPayload();
   if (!data) {
@@ -41,11 +75,26 @@ function hydrateReport() {
     <style>${PRINTABLE_REPORT_STYLES}</style>
   `;
   document.body.innerHTML = buildPrintableReport(data);
+  bindHelpTooltips(document.body);
 
   const printButton = document.getElementById("print-report");
   if (printButton) {
     printButton.addEventListener("click", () => {
       window.print();
+    });
+  }
+
+  const copyMarkdownButton = document.getElementById("copy-report-markdown");
+  if (copyMarkdownButton) {
+    copyMarkdownButton.addEventListener("click", () => {
+      copyTextToClipboard(buildMarkdownReport(data))
+        .then(() => {
+          showButtonFeedback(copyMarkdownButton, "Copied");
+        })
+        .catch((error) => {
+          console.error("SEO Score Checker: Markdown copy failed.", error);
+          showButtonFeedback(copyMarkdownButton, "Failed");
+        });
     });
   }
 

@@ -51,8 +51,39 @@ function hasExtension(url, extensions) {
   return extensions.some((extension) => pathname.endsWith(extension));
 }
 
+function hasImageDeliverySignal(url) {
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.toLowerCase();
+    const pathname = parsed.pathname.toLowerCase();
+    const pathSignal =
+      pathname.includes("/cdn-cgi/imagedelivery/") ||
+      /\/(?:image|images|img|media|picture|photo|thumbnail|thumb)(?:\/|$)/.test(pathname);
+    const hostSignal =
+      hostname.includes("imagedelivery") ||
+      hostname.includes("imagekit") ||
+      hostname.includes("imgix") ||
+      hostname.includes("cloudinary");
+
+    if (pathSignal || hostSignal) {
+      return true;
+    }
+
+    const params = parsed.searchParams;
+    const transformParams = ["auto", "dpr", "fit", "fm", "format", "h", "height", "q", "quality", "w", "width"];
+    const matchedParams = transformParams.filter((param) => params.has(param)).length;
+    return matchedParams >= 2 && /(?:image|img|cdn|media|asset|photo|thumb)/.test(hostname + pathname);
+  } catch (error) {
+    return false;
+  }
+}
+
 function isImageUrl(url) {
-  return hasExtension(url, IMAGE_EXTENSIONS);
+  if (hasExtension(url, SOURCE_EXTENSIONS)) {
+    return false;
+  }
+
+  return hasExtension(url, IMAGE_EXTENSIONS) || hasImageDeliverySignal(url);
 }
 
 function isSourceUrl(url) {

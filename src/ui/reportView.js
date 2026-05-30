@@ -1,5 +1,6 @@
 import { escapeHtml } from "./escapeHtml.js";
 import {
+  SECTION_LABELS,
   renderSectionSummary
 } from "./renderSections.js";
 import { renderSerpPreview } from "./renderSerpPreview.js";
@@ -75,6 +76,16 @@ function renderLengthMetric(value, thresholds, unit = "characters") {
   };
 }
 
+function formatPercentage(value) {
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue)) {
+    return "(missing)";
+  }
+
+  return Number((numericValue * 100).toFixed(1)) + "%";
+}
+
 function renderValueRow(label, value) {
   return `
     <div class="value-row">
@@ -84,12 +95,69 @@ function renderValueRow(label, value) {
   `;
 }
 
-function renderStatBadge(label, value, modifier = "") {
+function renderStatBadge(label, value, modifier = "", options = {}) {
+  const labelMarkup = options.showHelp
+    ? `<span class="label-with-help"><span>${escapeHtml(label)}</span>${renderHelpTip(label, options.helpText)}</span>`
+    : renderHelpLabel(label);
+
   return `
     <span class="stat-badge ${modifier}">
-      <span>${renderHelpLabel(label)}</span>
+      <span>${labelMarkup}</span>
       <strong>${renderInteractiveValue(value)}</strong>
     </span>
+  `;
+}
+
+function getScoreSectionLabel(sectionKey) {
+  if (sectionKey === "secondary") {
+    return "Preview tags";
+  }
+
+  return SECTION_LABELS[sectionKey] || sectionKey;
+}
+
+function renderScoreDetails(audit, options = {}) {
+  const { open = false } = options;
+  const sectionRows = Object.entries(audit.sections || {}).map(([sectionKey, section]) => [
+    getScoreSectionLabel(sectionKey),
+    section.maxScore,
+    section.score
+  ]);
+  sectionRows.push(["Total", 100, audit.score]);
+  const scoreDeductions = (audit.issues || [])
+    .filter((issue) => !issue.passed && !issue.infoOnly && issue.scoreImpact > 0)
+    .map(
+      (issue) =>
+        `<li>${escapeHtml(issue.title)} (${escapeHtml(getScoreSectionLabel(issue.section))}): -${escapeHtml(issue.scoreImpact)} points</li>`
+    );
+  const infoOnlySignals = (audit.issues || [])
+    .filter((issue) => !issue.passed && issue.infoOnly)
+    .map((issue) => `<li>${escapeHtml(issue.title)}</li>`);
+  const capText = audit.appliedCap
+    ? "Final score capped at " + audit.appliedCap.maxScore + " because " + audit.appliedCap.title.toLowerCase() + " was detected."
+    : "No critical cap applied.";
+  const infoOnlyMarkup = infoOnlySignals.length
+    ? `
+      <div class="section-subtitle">Informational-only signals</div>
+      <ul class="score-details__list">${infoOnlySignals.join("")}</ul>
+    `
+    : "";
+
+  return `
+    <details class="section-card score-details" ${open ? "open" : ""}>
+      <summary>Score details</summary>
+      <p class="muted">A current-page SEO score based on checks in this extension. SEO Score starts from 100 points across 8 current-page sections. Detected issues subtract points. Critical issues can cap the final score.</p>
+      ${renderTable(["Section", "Max", "Current"], sectionRows, { compact: true })}
+      <div class="section-subtitle">Score deductions</div>
+      ${
+        scoreDeductions.length
+          ? `<ul class="score-details__list">${scoreDeductions.join("")}</ul>`
+          : '<div class="passed-item">No score deductions detected.</div>'
+      }
+      <div class="section-subtitle">Critical cap status</div>
+      <div class="passed-item score-details__cap">${escapeHtml(capText)}</div>
+      ${infoOnlyMarkup}
+    </details>
   `;
 }
 
@@ -110,7 +178,7 @@ function renderIssueCards(title, issues, emptyState) {
                   (issue) => {
                     const scoreMeta = issue.infoOnly
                       ? '<span class="muted">Diagnostic insight, no score loss</span>'
-                      : `<span class="impact-badge impact-badge--${issue.severity}">Impact: -${issue.scoreImpact} points ${renderHelpTip("Impact")}</span>`;
+                      : `<span class="impact-badge impact-badge--${issue.severity}">Impact: -${issue.scoreImpact} points</span>`;
                     return `
                       <article class="issue issue--${issue.severity}">
                         <div class="fix-row">
@@ -145,68 +213,98 @@ function getStructuredIssues(data) {
   );
 }
 
-function renderRobotsTxtSitemaps(robotsTxt) {
+function renderRobotsTxtSummary(robotsTxt) {
   const sitemapUrls = robotsTxt.sitemapUrls || [];
   const sitemapCount = robotsTxt.sitemapCount || 0;
-
-  if (!sitemapCount) {
-    return `
-      <div class="robots-sitemaps">
-        <div class="section-subtitle">Robots.txt sitemaps</div>
-        <div class="passed-item">No sitemap directives found in robots.txt.</div>
-      </div>
-    `;
-  }
+  const robotsUrl = robotsTxt.url || "";
 
   return `
-    <div class="robots-sitemaps">
-      <div class="section-subtitle">Robots.txt sitemaps</div>
-      <div class="robots-sitemaps__summary">
-        Showing ${sitemapUrls.length} of ${sitemapCount} sitemap URL${sitemapCount === 1 ? "" : "s"} declared in robots.txt.
+    <section class="section-card report-group">
+      <div class="section-row">
+        <div>
+          <div class="eyebrow">Discovery</div>
+          <h2 class="section-title">Robots.txt and sitemaps</h2>
+        </div>
       </div>
-      <div class="robots-sitemaps__list">
-        ${sitemapUrls
-          .map((url) => `<div class="robots-sitemaps__item">${renderInteractiveValue(url)}</div>`)
-          .join("")}
+      <p class="muted">Site-level robots.txt reference. Informational only. Not used in the current-page SEO Score.</p>
+      <div class="robots-sitemaps">
+        <div class="section-subtitle">Robots.txt</div>
+        ${
+          robotsUrl
+            ? `<div class="robots-sitemaps__list"><div class="robots-sitemaps__item">${renderInteractiveValue(robotsUrl)}</div></div>`
+            : '<div class="passed-item">No robots.txt URL was checked.</div>'
+        }
       </div>
-    </div>
+      <div class="robots-sitemaps">
+        <div class="section-subtitle">Sitemaps</div>
+        ${
+          sitemapCount
+            ? `
+              <div class="robots-sitemaps__summary">
+                Showing ${sitemapUrls.length} of ${sitemapCount} sitemap URL${sitemapCount === 1 ? "" : "s"} declared in robots.txt.
+              </div>
+              <div class="robots-sitemaps__list">
+                ${sitemapUrls
+                  .map((url) => `<div class="robots-sitemaps__item">${renderInteractiveValue(url)}</div>`)
+                  .join("")}
+              </div>
+            `
+            : '<div class="passed-item">No sitemap directives found in robots.txt.</div>'
+        }
+      </div>
+    </section>
   `;
+}
+
+const PAGE_METRIC_HELP_EXCLUDED = new Set([
+  "URL",
+  "Lang",
+  "Has viewport",
+  "Responsive viewport",
+  "URL length",
+  "Query params"
+]);
+
+function renderPageMetricLabel(label) {
+  const safeLabel = escapeHtml(label);
+
+  if (PAGE_METRIC_HELP_EXCLUDED.has(label)) {
+    return {
+      html: safeLabel
+    };
+  }
+
+  return {
+    html: `<span class="label-with-help"><span>${safeLabel}</span>${renderHelpTip(label)}</span>`
+  };
 }
 
 function renderPageTab(data) {
   const pageData = data.pageData;
-  const robotsTxt = pageData.robotsTxt || {};
   const rows = [
-    ["URL", pageData.url],
-    ["Hostname", pageData.hostname],
-    ["Title", pageData.title.text],
-    ["Title length", renderLengthMetric(pageData.title.length, TITLE_THRESHOLDS)],
-    ["Meta description", pageData.metaDescription.text],
-    ["Meta description length", renderLengthMetric(pageData.metaDescription.length, META_DESCRIPTION_THRESHOLDS)],
-    ["Canonical", pageData.canonical.href],
-    ["Canonical exists", pageData.canonical.exists],
-    ["Canonical valid", pageData.canonical.isValid],
-    ["Canonical matches current URL", pageData.canonical.pointsToCurrentUrl],
-    ["Robots meta", pageData.robots.content],
-    ["Googlebot", pageData.robots.googlebotContent],
-    ["Noindex", pageData.robots.noindex],
-    ["Nofollow", pageData.robots.nofollow],
-    ["Robots.txt URL", robotsTxt.url || ""],
-    ["Robots.txt status", robotsTxt.status || "not checked"],
-    ["Robots.txt HTTP status", robotsTxt.statusCode || "(unknown)"],
-    ["Robots.txt size", robotsTxt.size ? robotsTxt.size + " characters" : "(none)"],
-    ["Robots.txt allow rules", robotsTxt.allowCount || 0],
-    ["Robots.txt disallow rules", robotsTxt.disallowCount || 0],
-    ["Robots.txt sitemap directives", robotsTxt.sitemapCount || 0],
-    ["Lang", pageData.technical.lang],
-    ["Charset", pageData.technical.charset],
-    ["Viewport", pageData.technical.viewport],
-    ["Has viewport", pageData.technical.hasViewport],
-    ["Responsive viewport", pageData.technical.hasResponsiveViewport],
-    ["URL length", pageData.urlSignals.length],
-    ["Path depth", pageData.urlSignals.pathDepth],
-    ["Query params", pageData.urlSignals.queryParamCount],
-    ["Slug reflects topic", pageData.urlSignals.reflectsTopic]
+    [renderPageMetricLabel("URL"), pageData.url],
+    [renderPageMetricLabel("Hostname"), pageData.hostname],
+    [renderPageMetricLabel("Title"), pageData.title.text],
+    [renderPageMetricLabel("Title length"), renderLengthMetric(pageData.title.length, TITLE_THRESHOLDS)],
+    [renderPageMetricLabel("Meta description"), pageData.metaDescription.text],
+    [renderPageMetricLabel("Meta description length"), renderLengthMetric(pageData.metaDescription.length, META_DESCRIPTION_THRESHOLDS)],
+    [renderPageMetricLabel("Canonical"), pageData.canonical.href],
+    [renderPageMetricLabel("Canonical exists"), pageData.canonical.exists],
+    [renderPageMetricLabel("Canonical valid"), pageData.canonical.isValid],
+    [renderPageMetricLabel("Canonical matches current URL"), pageData.canonical.pointsToCurrentUrl],
+    [renderPageMetricLabel("Robots meta"), pageData.robots.content],
+    [renderPageMetricLabel("Googlebot"), pageData.robots.googlebotContent],
+    [renderPageMetricLabel("Noindex"), pageData.robots.noindex],
+    [renderPageMetricLabel("Nofollow"), pageData.robots.nofollow],
+    [renderPageMetricLabel("Lang"), pageData.technical.lang],
+    [renderPageMetricLabel("Charset"), pageData.technical.charset],
+    [renderPageMetricLabel("Viewport"), pageData.technical.viewport],
+    [renderPageMetricLabel("Has viewport"), pageData.technical.hasViewport],
+    [renderPageMetricLabel("Responsive viewport"), pageData.technical.hasResponsiveViewport],
+    [renderPageMetricLabel("URL length"), pageData.urlSignals.length],
+    [renderPageMetricLabel("Path depth"), pageData.urlSignals.pathDepth],
+    [renderPageMetricLabel("Query params"), pageData.urlSignals.queryParamCount],
+    [renderPageMetricLabel("Slug reflects topic"), pageData.urlSignals.reflectsTopic]
   ];
   const pageIssues = getSectionIssues(data, ["indexability", "metadata"]).concat(
     data.audit.issues.filter(
@@ -229,7 +327,6 @@ function renderPageTab(data) {
           </div>
         </div>
         ${renderTable(["Field", "Value"], rows)}
-        ${renderRobotsTxtSitemaps(robotsTxt)}
       </section>
     </div>
   `;
@@ -257,11 +354,11 @@ function renderLinksTab(data) {
         </div>
         <div class="link-stats" aria-label="Link statistics">
           ${renderStatBadge("Total", data.pageData.links.total)}
-          ${renderStatBadge("Internal", data.pageData.links.internal, "stat-badge--internal")}
-          ${renderStatBadge("External", data.pageData.links.external, "stat-badge--external")}
-          ${renderStatBadge("Placeholder", data.pageData.links.placeholders, "stat-badge--warning")}
-          ${renderStatBadge("Contextual internal", data.pageData.links.contextualInternal, "stat-badge--internal")}
-          ${renderStatBadge("Generic anchors", data.pageData.links.genericAnchorCount)}
+          ${renderStatBadge("Internal", data.pageData.links.internal, "stat-badge--internal", { showHelp: true })}
+          ${renderStatBadge("External", data.pageData.links.external, "stat-badge--external", { showHelp: true })}
+          ${renderStatBadge("Placeholder", data.pageData.links.placeholders, "stat-badge--warning", { showHelp: true })}
+          ${renderStatBadge("Contextual internal", data.pageData.links.contextualInternal, "stat-badge--internal", { showHelp: true })}
+          ${renderStatBadge("Generic anchors", data.pageData.links.genericAnchorCount, "", { showHelp: true })}
         </div>
         ${renderTable(["Anchor text", "Type", "Follow", "URL kind", "URL"], rows)}
       </section>
@@ -312,6 +409,10 @@ function renderContentTab(data) {
 }
 
 function renderImagesTab(data) {
+  const images = data.pageData.images;
+  const missingAltImages = images.missingAltSamples || [];
+  const imagesWithAlt = images.imagesWithAlt || [];
+
   return `
     <div class="sections">
       ${renderIssueCards("Image issues", getSectionIssues(data, ["images"]), "No image issues found.")}
@@ -323,26 +424,42 @@ function renderImagesTab(data) {
           </div>
         </div>
         <div class="value-list">
-          ${renderValueRow("Total images", data.pageData.images.total)}
-          ${renderValueRow("Meaningful images", data.pageData.images.meaningfulTotal)}
-          ${renderValueRow("Missing image alts", data.pageData.images.missingAlt + " of " + data.pageData.images.meaningfulTotal + " meaningful images")}
-          ${renderValueRow("Missing alt ratio", data.pageData.images.missingAltRatio)}
-          ${renderValueRow("Generic image filenames", data.pageData.images.genericFilenameCount)}
-          ${renderValueRow("Images without dimensions", data.pageData.images.missingDimensionsCount)}
+          ${renderValueRow("Total images", images.total)}
+          ${renderValueRow("Meaningful images", images.meaningfulTotal)}
+          ${renderValueRow("Missing image alts", images.missingAlt + " of " + images.meaningfulTotal + " meaningful images")}
+          ${renderValueRow("Missing alt percentage", formatPercentage(images.missingAltRatio))}
+          ${renderValueRow("Generic image filenames", images.genericFilenameCount)}
+          ${renderValueRow("Images without dimensions", images.missingDimensionsCount)}
         </div>
         <div class="section-subtitle">Images missing alt</div>
+        <p class="muted">Showing ${missingAltImages.length} of ${images.missingAlt} images missing alt.</p>
         ${
-          data.pageData.images.missingAltSamples.length
+          missingAltImages.length
             ? renderTable(
                 ["Image", "Alt", "Size"],
-                data.pageData.images.missingAltSamples.map((item) => [
+                missingAltImages.map((item) => [
                   item.src,
                   item.alt || "(missing)",
                   item.width + "x" + item.height
                 ]),
                 { compact: true }
               )
-            : '<div class="passed-item">No missing alt samples.</div>'
+            : '<div class="passed-item">No images missing alt.</div>'
+        }
+        <div class="section-subtitle">Images with alt text</div>
+        <p class="muted">Showing ${imagesWithAlt.length} meaningful images with non-empty alt text.</p>
+        ${
+          imagesWithAlt.length
+            ? renderTable(
+                ["Image", "Alt", "Size"],
+                imagesWithAlt.map((item) => [
+                  item.src,
+                  item.alt,
+                  item.width + "x" + item.height
+                ]),
+                { compact: true }
+              )
+            : '<div class="passed-item">No meaningful images with alt text found.</div>'
         }
       </section>
     </div>
@@ -350,38 +467,54 @@ function renderImagesTab(data) {
 }
 
 function renderSocialTab(data) {
+  const structuredDataHelp =
+    "This block summarizes JSON-LD structured data found on the page: total blocks, valid and invalid blocks, and detected Schema.org types.";
+  const socialPreviewHelp =
+    "This block shows Open Graph and Twitter/X preview tags used by social platforms when the page is shared: title, description, image, and card type.";
   const socialRows = [
-    ["OG title", data.pageData.openGraph.title],
-    ["OG description", data.pageData.openGraph.description],
-    ["OG image", data.pageData.openGraph.image],
-    ["Twitter card", data.pageData.twitter.card],
-    ["Twitter title", data.pageData.twitter.title],
-    ["Twitter description", data.pageData.twitter.description],
-    ["Twitter image", data.pageData.twitter.image]
+    [{ html: escapeHtml("OG title") }, data.pageData.openGraph.title],
+    [{ html: escapeHtml("OG description") }, data.pageData.openGraph.description],
+    [{ html: escapeHtml("OG image") }, data.pageData.openGraph.image],
+    [{ html: escapeHtml("Twitter card") }, data.pageData.twitter.card],
+    [{ html: escapeHtml("Twitter title") }, data.pageData.twitter.title],
+    [{ html: escapeHtml("Twitter description") }, data.pageData.twitter.description],
+    [{ html: escapeHtml("Twitter image") }, data.pageData.twitter.image]
   ];
 
   const jsonLdRows = [
-    ["JSON-LD blocks", data.pageData.jsonLd.count],
-    ["Valid JSON-LD", data.pageData.jsonLd.validCount],
-    ["Invalid JSON-LD", data.pageData.jsonLd.invalidCount],
-    ["Schema types", data.pageData.jsonLd.types.join(", ") || "(none)"]
+    [{ html: escapeHtml("JSON-LD blocks") }, data.pageData.jsonLd.count],
+    [{ html: escapeHtml("Valid JSON-LD") }, data.pageData.jsonLd.validCount],
+    [{ html: escapeHtml("Invalid JSON-LD") }, data.pageData.jsonLd.invalidCount],
+    [{ html: escapeHtml("Schema types") }, data.pageData.jsonLd.types.join(", ") || "(none)"]
   ];
 
   return `
     <div class="sections">
-      ${renderIssueCards("Social and schema issues", getStructuredIssues(data), "No social or schema issues found.")}
+      ${renderIssueCards("Schema and preview issues", getStructuredIssues(data), "No schema or preview issues found.")}
       <section class="section-card report-group">
         <div class="section-row">
           <div>
-            <div class="eyebrow">Social</div>
-            <h2 class="section-title">Social preview and schema signals</h2>
+            <div class="eyebrow">Schema</div>
+            <h2 class="section-title">Structured data and preview tags</h2>
           </div>
         </div>
-        <div class="section-subtitle">Structured data</div>
+        <p class="muted">Schema and preview tags detected on the current page.</p>
+        <div class="section-subtitle section-subtitle--with-help">
+          <span>Structured Data</span>
+          ${renderHelpTip("Structured data", structuredDataHelp)}
+        </div>
         ${renderTable(["Field", "Value"], jsonLdRows, { compact: true })}
-        <div class="section-subtitle">Open Graph and Twitter</div>
+        <div class="section-subtitle section-subtitle--with-help">
+          <span>Social Preview Tags</span>
+          ${renderHelpTip("Open Graph and Twitter", socialPreviewHelp)}
+        </div>
         ${renderTable(["Field", "Value"], socialRows, { compact: true })}
-        <div class="section-subtitle">${renderHelpLabel("Commercial intent")}</div>
+        <div class="section-subtitle">
+          ${renderHelpLabel(
+            "Commercial Signals",
+            "Detected business or conversion terms on the current page. Used only to prioritize SEO fixes, not to estimate revenue."
+          )}
+        </div>
         <div class="value-list">
           ${renderValueRow("Detected", data.pageData.commercialIntent.detected)}
           ${renderValueRow("Matched terms", data.pageData.commercialIntent.matchedTerms)}
@@ -392,8 +525,11 @@ function renderSocialTab(data) {
 }
 
 function renderResourcesTab(data, options = {}) {
-  const RESOURCE_DISPLAY_LIMIT = 100;
-  const { includeActions = true, showAll = Boolean(data.resourcesExpanded) } = options;
+  const { includeActions = true } = options;
+  const externalResourcesHelp = "Resources loaded from another URL or host, such as external CSS, JavaScript, images, or preloads.";
+  const inlineResourcesHelp = "Resources embedded directly in the page HTML, such as inline style or script blocks without their own URL.";
+  const resourcesHelp =
+    "Scripts, stylesheets, and HTML resources detected on the current page. Informational only; these counts do not affect the SEO Score.";
   const resources = data.pageData.resources || {
     html: [],
     css: [],
@@ -407,15 +543,8 @@ function renderResourcesTab(data, options = {}) {
     ...resources.css.map((item) => [item.type, item.kind, item.url]),
     ...resources.js.map((item) => [item.type, item.kind, item.url])
   ];
-  const visibleRows = showAll ? rows : rows.slice(0, RESOURCE_DISPLAY_LIMIT);
-  const canExpand = includeActions && !showAll && rows.length > RESOURCE_DISPLAY_LIMIT;
-  const actionsMarkup = includeActions
-    ? `
-      <div class="resource-actions">
-        ${canExpand ? '<button type="button" class="button button--secondary" data-action="show-all-resources">Show all resources</button>' : ""}
-        ${rows.length ? '<button type="button" class="button button--secondary" data-action="export-resources-csv">Export CSV</button>' : ""}
-      </div>
-    `
+  const exportMarkup = includeActions && rows.length
+    ? '<button type="button" class="button button--secondary resource-export-button" data-action="export-resources-csv">Export CSV</button>'
     : "";
 
   return `
@@ -424,24 +553,24 @@ function renderResourcesTab(data, options = {}) {
         <div class="section-row">
           <div>
             <div class="eyebrow">Resources</div>
-            <h2 class="section-title">Page resources</h2>
+            <h2 class="section-title">Page resources ${renderHelpTip("Resources", resourcesHelp)}</h2>
           </div>
         </div>
-        <p class="muted">HTML, CSS, and JavaScript resources detected from the current-page DOM. Inline resources are counted without exposing their source code.</p>
-        <div class="link-stats" aria-label="Page resource statistics">
+        <p class="muted">HTML, CSS, and JavaScript resources detected from the current-page DOM. Informational only; resource counts do not affect the SEO Score.</p>
+        <div class="link-stats resource-stats" aria-label="Page resource statistics">
           ${renderStatBadge("HTML", resources.html.length)}
           ${renderStatBadge("CSS", resources.css.length)}
           ${renderStatBadge("JS", resources.js.length)}
-          ${renderStatBadge("External", resources.externalTotal)}
-          ${renderStatBadge("Inline", resources.inlineTotal)}
+          ${renderStatBadge("External", resources.externalTotal, "", { showHelp: true, helpText: externalResourcesHelp })}
+          ${renderStatBadge("Inline", resources.inlineTotal, "", { showHelp: true, helpText: inlineResourcesHelp })}
           ${renderStatBadge("Total", resources.total)}
+          ${exportMarkup}
         </div>
-        ${actionsMarkup}
         ${
           rows.length
             ? `
-              <p class="muted">Showing ${visibleRows.length} of ${rows.length} resources.</p>
-              ${renderTable(["Type", "Kind", "Resource"], visibleRows)}
+              <p class="muted">Showing all ${rows.length} resources.</p>
+              ${renderTable(["Type", "Kind", "Resource"], rows)}
             `
             : '<div class="passed-item">No page resources detected.</div>'
         }
@@ -457,7 +586,7 @@ function renderTabNav(activeTab) {
     ["headers", "Headers"],
     ["images", "Images"],
     ["links", "Links"],
-    ["social", "Social"],
+    ["social", "Schema"],
     ["resources", "Resources"]
   ];
 
@@ -510,6 +639,7 @@ function renderActiveTab(data, activeTab) {
     <div class="report-stack">
       ${renderTopFixes(data.topFixes)}
       ${renderSerpPreview(data.serpPreview)}
+      ${renderRobotsTxtSummary(data.pageData.robotsTxt || {})}
       ${renderSectionSummary(data.audit)}
     </div>
   `;
@@ -521,6 +651,7 @@ export function renderReportView(data, activeTab) {
       ? `
         <div class="report-summary">
           ${renderScore(data.audit)}
+          ${renderScoreDetails(data.audit)}
           ${renderRisk(data.risk)}
         </div>
       `
@@ -595,6 +726,23 @@ export const PRINTABLE_REPORT_STYLES = `
     border-color: #bfd4ff;
     color: #1d4ed8;
   }
+  .button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #bfd4ff;
+    border-radius: 10px;
+    padding: 10px 14px;
+    background: #f4f8ff;
+    color: #1d4ed8;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .button:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
   .wrap {
     max-width: 1100px;
     margin: 0 auto;
@@ -654,29 +802,18 @@ export const PRINTABLE_REPORT_STYLES = `
   }
   .help-tip::before,
   .help-tip::after {
-    position: absolute;
-    left: 50%;
-    z-index: 60;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 150ms ease, transform 150ms ease, visibility 150ms ease;
-    visibility: hidden;
+    display: none;
   }
-  .help-tip::before {
-    content: "";
-    bottom: calc(100% + 3px);
-    width: 8px;
-    height: 8px;
-    background: var(--surface);
-    border-right: 1px solid var(--border);
-    border-bottom: 1px solid var(--border);
-    transform: translate(-50%, 4px) rotate(45deg);
+  .help-tip:hover,
+  .help-tip:focus-visible {
+    border-color: #b7c5d8;
+    color: #1d4ed8;
+    outline: 0;
   }
-  .help-tip::after {
-    content: attr(data-help);
-    bottom: calc(100% + 7px);
+  .help-tooltip {
+    position: fixed;
+    z-index: 2000;
     width: max-content;
-    max-width: 260px;
     padding: 8px 10px;
     border: 1px solid var(--border);
     border-radius: 10px;
@@ -687,30 +824,56 @@ export const PRINTABLE_REPORT_STYLES = `
     font-weight: 600;
     letter-spacing: 0;
     line-height: 1.35;
+    opacity: 0;
+    pointer-events: none;
     text-align: left;
     text-transform: none;
-    transform: translate(-50%, 4px);
+    transition: opacity 150ms ease, visibility 150ms ease;
+    visibility: hidden;
     white-space: normal;
   }
-  .help-tip:hover,
-  .help-tip:focus-visible {
-    border-color: #b7c5d8;
-    color: #1d4ed8;
-    outline: 0;
-  }
-  .help-tip:hover::before,
-  .help-tip:focus-visible::before {
+  .help-tooltip--visible {
     opacity: 1;
-    transform: translate(-50%, 0) rotate(45deg);
     visibility: visible;
   }
-  .help-tip:hover::after,
-  .help-tip:focus-visible::after {
-    opacity: 1;
-    transform: translate(-50%, 0);
-    visibility: visible;
+  .help-tooltip__arrow {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    transform: rotate(45deg);
+  }
+  .help-tooltip[data-placement="top"] .help-tooltip__arrow {
+    bottom: -5px;
+    transform: translateX(-50%) rotate(45deg);
+  }
+  .help-tooltip[data-placement="bottom"] .help-tooltip__arrow {
+    top: -5px;
+    transform: translateX(-50%) rotate(45deg);
+  }
+  .help-tooltip[data-placement="right"] .help-tooltip__arrow {
+    left: -5px;
+    transform: translateY(-50%) rotate(45deg);
+  }
+  .help-tooltip[data-placement="left"] .help-tooltip__arrow {
+    right: -5px;
+    transform: translateY(-50%) rotate(45deg);
   }
   .section-title { margin: 0 0 12px; font-size: 18px; }
+  .section-subtitle {
+    margin-top: 16px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .section-subtitle--with-help {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
   .eyebrow {
     font-size: 11px;
     letter-spacing: 0.08em;
@@ -747,6 +910,21 @@ export const PRINTABLE_REPORT_STYLES = `
     font-size: 14px;
     font-weight: 700;
   }
+  .score-details summary {
+    cursor: pointer;
+    font-weight: 700;
+  }
+  .score-details__list {
+    margin: 8px 0 0;
+    padding-left: 18px;
+    color: var(--muted);
+  }
+  .score-details__list li + li {
+    margin-top: 4px;
+  }
+  .score-details__cap {
+    margin-top: 8px;
+  }
   .report-item__meta {
     color: var(--muted);
     margin-bottom: 6px;
@@ -781,8 +959,9 @@ export const PRINTABLE_REPORT_STYLES = `
     background: rgba(220, 38, 38, 0.1);
   }
   .metric-target {
-    display: block;
-    margin-top: 4px;
+    display: inline-flex;
+    align-items: center;
+    margin-left: 8px;
     color: var(--muted);
     font-size: 12px;
     line-height: 1.35;
@@ -791,7 +970,7 @@ export const PRINTABLE_REPORT_STYLES = `
     margin-top: 12px;
     border: 1px solid var(--border);
     border-radius: 12px;
-    overflow: hidden;
+    overflow: visible;
     background: var(--surface-alt);
   }
   .data-table {
@@ -819,12 +998,19 @@ export const PRINTABLE_REPORT_STYLES = `
     border-bottom: 0;
   }
   .link-stats,
-  .resource-actions,
   .heading-stats {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
     margin-top: 12px;
+  }
+  .resource-stats {
+    align-items: center;
+  }
+  .resource-export-button {
+    margin-left: auto;
+    min-height: 30px;
+    padding: 5px 12px;
   }
   .stat-badge {
     display: inline-flex;
@@ -883,18 +1069,18 @@ export const PRINTABLE_REPORT_STYLES = `
     border: 1px solid var(--border);
     border-radius: 12px;
     background: var(--surface-alt);
-    overflow: hidden;
+    overflow: visible;
   }
   .robots-sitemaps__item {
     min-width: 0;
     padding: 6px 8px;
-    border-radius: 8px;
-    background: var(--surface);
     overflow-wrap: anywhere;
     word-break: break-word;
   }
   .robots-sitemaps__item .value-link {
-    display: block;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
   .value-link {
     position: relative;
@@ -918,11 +1104,17 @@ export const PRINTABLE_REPORT_STYLES = `
     overflow-wrap: anywhere;
     word-break: break-word;
   }
+  .value-link--image {
+    display: inline-block;
+    max-width: 100%;
+    vertical-align: top;
+  }
   .image-preview {
     position: absolute;
     left: 0;
     top: calc(100% + 8px);
-    z-index: 20;
+    z-index: 80;
+    display: none;
     width: 220px;
     max-width: calc(100vw - 48px);
     padding: 8px;
@@ -945,6 +1137,7 @@ export const PRINTABLE_REPORT_STYLES = `
   }
   .value-link:hover .image-preview,
   .value-link:focus-visible .image-preview {
+    display: block;
     opacity: 1;
     transform: translateY(0);
   }
@@ -1056,6 +1249,19 @@ export const PRINTABLE_REPORT_STYLES = `
     color: #1a0dab;
     font-size: 18px;
   }
+  .serp-preview__url {
+    display: block;
+    color: #188038;
+    word-break: break-all;
+  }
+  .serp-preview__title {
+    margin: 0;
+    color: #1a0dab;
+  }
+  .serp-preview__note {
+    color: var(--muted);
+    font-size: 12px;
+  }
   .report-score-grid {
     display: grid;
     gap: 16px;
@@ -1131,6 +1337,7 @@ export const PRINTABLE_REPORT_STYLES = `
       page-break-before: always;
     }
     .help-tip,
+    .help-tooltip,
     .image-preview {
       display: none;
     }
@@ -1166,14 +1373,14 @@ export function buildPrintableReport(data) {
   return `
     <header class="page-header">
       <div class="page-header__meta">
-        <div class="eyebrow">SEO Score Checker</div>
         <h1 class="title">SEO Score Checker Report</h1>
         <div class="muted">${escapeHtml(data.pageData.hostname || "Unknown host")}</div>
         <div class="muted">${renderInteractiveValue(data.pageData.url || "")}</div>
-        <div class="print-note">This report is based on the current page only. It does not crawl an entire domain.</div>
+        <div class="print-note">This report is based on the current page only. It does not crawl an entire domain. Page content is not sent to a server.</div>
       </div>
       <div class="page-actions">
-        <button type="button" class="action-button action-button--primary" id="print-report">Print / Save PDF</button>
+        <button type="button" class="action-button" id="print-report">Print</button>
+        <button type="button" class="action-button action-button--primary" id="copy-report-markdown">Copy as Markdown</button>
         <button type="button" class="action-button" id="close-report">Close</button>
       </div>
     </header>
@@ -1181,11 +1388,12 @@ export function buildPrintableReport(data) {
       ${renderPrintableTab(
         "Summary",
         `
-          <div class="muted">This report is based on the current page only. It does not crawl an entire domain.</div>
+          <div class="muted">This report is based on the current page only. It does not crawl an entire domain. Page content is not sent to a server.</div>
           <div class="report-summary">
             ${renderScore(data.audit)}
             ${renderRisk(data.risk)}
           </div>
+          ${renderScoreDetails(data.audit, { open: true })}
           ${renderActiveTab(data, "overview")}
         `
       )}
@@ -1193,8 +1401,8 @@ export function buildPrintableReport(data) {
       ${renderPrintableTab("Headers", renderContentTab(data))}
       ${renderPrintableTab("Images", renderImagesTab(data))}
       ${renderPrintableTab("Links", renderLinksTab(data))}
-      ${renderPrintableTab("Social", renderSocialTab(data))}
-      ${renderPrintableTab("Resources", renderResourcesTab(data, { includeActions: false, showAll: false }))}
+      ${renderPrintableTab("Schema", renderSocialTab(data))}
+      ${renderPrintableTab("Resources", renderResourcesTab(data, { includeActions: false }))}
     </main>
   `;
 }

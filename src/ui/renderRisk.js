@@ -14,7 +14,7 @@ export function renderRisk(risk) {
       </div>
       ${risk.category ? `<div class="meta-row"><span class="muted">Risk type: ${escapeHtml(risk.category)}</span></div>` : ""}
       <p>${escapeHtml(risk.reason)}</p>
-      <p class="muted">Traffic Risk is a heuristic priority label for organic visibility, snippets, clicks, and common publishing issues. It is not a revenue estimate or ROI forecast.</p>
+      <p class="muted">Traffic Risk is a heuristic priority label based on detected page issues. It is not a revenue estimate, ranking forecast, or traffic prediction.</p>
     </section>
   `;
 }

@@ -342,6 +342,9 @@
 
       return (image.getAttribute("alt") || "").trim() === "";
     });
+    const imagesWithAlt = meaningful.filter(
+      (image) => image.hasAttribute("alt") && (image.getAttribute("alt") || "").trim() !== ""
+    );
     const missingAlt = missingAltImages.length;
     const genericFilenameCount = meaningful.filter((image) => {
       const src = image.currentSrc || image.src || "";
@@ -359,7 +362,13 @@
       missingAltRatio: meaningful.length > 0 ? missingAlt / meaningful.length : 0,
       genericFilenameCount,
       missingDimensionsCount,
-      missingAltSamples: missingAltImages.slice(0, 20).map((image) => ({
+      missingAltSamples: missingAltImages.map((image) => ({
+        src: image.currentSrc || image.src || "",
+        alt: image.getAttribute("alt") || "",
+        width: image.width || 0,
+        height: image.height || 0
+      })),
+      imagesWithAlt: imagesWithAlt.map((image) => ({
         src: image.currentSrc || image.src || "",
         alt: image.getAttribute("alt") || "",
         width: image.width || 0,
@@ -617,12 +626,21 @@
     const js = [
       ...Array.from(document.querySelectorAll("script")).map((node, index) => {
         const src = (node.getAttribute("src") || "").trim();
+
+        if (src) {
+          return {
+            kind: node.getAttribute("type") || "Script",
+            type: "JS",
+            url: resolveResourceUrl(src)
+          };
+        }
+
+        const sourceLength = textContentOf(node).length;
+
         return {
-          kind: src ? node.getAttribute("type") || "Script" : "Inline script",
+          kind: "Inline script",
           type: "JS",
-          url: src
-            ? resolveResourceUrl(src)
-            : "Inline script #" + (index + 1) + " (" + textContentOf(node).length + " characters)"
+          url: "Inline script #" + (index + 1) + " (" + sourceLength + " characters)"
         };
       }),
       ...Array.from(document.querySelectorAll('link[rel~="modulepreload" i][href], link[rel~="preload" i][as="script" i][href]')).map((node) => ({

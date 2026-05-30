@@ -6,6 +6,14 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
+const CRITICAL_SCORE_CAPS = [
+  ["noindex", 49],
+  ["title_missing", 69],
+  ["canonical_invalid", 69],
+  ["canonical_other_url", 74],
+  ["h1_missing", 79]
+];
+
 function hasGoodTitleLength(length) {
   return length >= TITLE_THRESHOLDS.goodMin && length <= TITLE_THRESHOLDS.goodMax;
 }
@@ -22,7 +30,7 @@ function buildInfoIssue(id, section, title, recommendation) {
     title,
     recommendation,
     scoreImpact: 0,
-    revenueRisk: "low",
+    trafficRisk: "low",
     passed: false,
     infoOnly: true
   };
@@ -358,6 +366,34 @@ function getScoreLabel(score) {
   return SCORE_LABELS.criticalLabel;
 }
 
+function hasUnresolvedIssue(issues, issueId) {
+  return issues.some((issue) => issue.id === issueId && !issue.passed);
+}
+
+function applyScoreCaps(score, issues) {
+  const cap = getScoreCap(issues);
+  return cap ? Math.min(score, cap.maxScore) : score;
+}
+
+function getScoreCap(issues) {
+  return CRITICAL_SCORE_CAPS.reduce((currentCap, [issueId, maxScore]) => {
+    if (!hasUnresolvedIssue(issues, issueId)) {
+      return currentCap;
+    }
+
+    if (!currentCap || maxScore < currentCap.maxScore) {
+      const issue = issues.find((item) => item.id === issueId && !item.passed);
+      return {
+        issueId,
+        maxScore,
+        title: issue ? issue.title : issueId
+      };
+    }
+
+    return currentCap;
+  }, null);
+}
+
 export function scorePage(pageData) {
   const sections = {
     indexability: scoreIndexability(pageData),
@@ -370,7 +406,7 @@ export function scorePage(pageData) {
     secondary: scoreSecondary(pageData)
   };
 
-  const totalScore = clamp(
+  const rawScore = clamp(
     Object.values(sections).reduce((sum, section) => sum + section.score, 0),
     0,
     100
@@ -445,9 +481,14 @@ export function scorePage(pageData) {
     );
   }
 
+  const scoreCap = getScoreCap(issues);
+  const finalScore = applyScoreCaps(rawScore, issues);
+
   return {
-    score: totalScore,
-    scoreLabel: getScoreLabel(totalScore),
+    score: finalScore,
+    scoreLabel: getScoreLabel(finalScore),
+    rawScore,
+    appliedCap: scoreCap && rawScore > scoreCap.maxScore ? scoreCap : null,
     sections,
     issues: issues.concat(infoIssues),
     insights: {

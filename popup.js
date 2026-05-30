@@ -1,8 +1,9 @@
 import { getTopFixes } from "./src/analyzer/recommendations.js";
-import { calculateRevenueRisk } from "./src/analyzer/revenueRisk.js";
+import { calculateTrafficRisk } from "./src/analyzer/trafficRisk.js";
 import { scorePage } from "./src/analyzer/scorePage.js";
 import { buildSerpPreview } from "./src/analyzer/serpPreview.js";
 import { renderApp } from "./src/ui/renderApp.js";
+import { bindHelpTooltips } from "./src/ui/tooltipPlacement.js";
 
 const appRoot = document.getElementById("app");
 
@@ -42,6 +43,8 @@ function setState(nextState) {
 }
 
 function bindActions() {
+  bindHelpTooltips(appRoot);
+
   appRoot.querySelectorAll("[data-action='recheck']").forEach((button) => {
     button.addEventListener("click", () => {
       void runAudit();
@@ -68,21 +71,6 @@ function bindActions() {
   appRoot.querySelectorAll("[data-action='export-links-csv']").forEach((button) => {
     button.addEventListener("click", () => {
       exportLinksCsv();
-    });
-  });
-
-  appRoot.querySelectorAll("[data-action='show-all-resources']").forEach((button) => {
-    button.addEventListener("click", () => {
-      if (currentState.status !== "success" || !currentState.data) {
-        return;
-      }
-
-      setState({
-        data: {
-          ...currentState.data,
-          resourcesExpanded: true
-        }
-      });
     });
   });
 
@@ -161,7 +149,7 @@ async function runAudit() {
     }
 
     const audit = scorePage(pageData);
-    const risk = calculateRevenueRisk(audit.issues, pageData);
+    const risk = calculateTrafficRisk(audit.issues, pageData);
     const topFixes = getTopFixes(audit.issues, pageData);
     const serpPreview = buildSerpPreview(pageData);
 

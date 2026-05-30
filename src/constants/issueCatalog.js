@@ -5,7 +5,7 @@ const ISSUE_CATALOG = {
     title: "Page is marked noindex",
     recommendation: "Remove the noindex directive if this page should appear in search results.",
     scoreImpact: 15,
-    revenueRisk: "high"
+    trafficRisk: "high"
   },
   nofollow: {
     section: "indexability",
@@ -13,7 +13,7 @@ const ISSUE_CATALOG = {
     title: "Page uses nofollow in robots directives",
     recommendation: "Review the robots directive and remove nofollow if it is blocking normal link equity flow.",
     scoreImpact: 4,
-    revenueRisk: "medium"
+    trafficRisk: "medium"
   },
   canonical_other_url: {
     section: "indexability",
@@ -21,7 +21,7 @@ const ISSUE_CATALOG = {
     title: "Canonical points to another URL",
     recommendation: "Update the canonical tag so it points to this exact page when self-canonicalization is intended.",
     scoreImpact: 8,
-    revenueRisk: "high"
+    trafficRisk: "high"
   },
   canonical_invalid: {
     section: "indexability",
@@ -29,7 +29,7 @@ const ISSUE_CATALOG = {
     title: "Canonical URL is invalid",
     recommendation: "Fix the canonical URL so search engines can interpret it reliably.",
     scoreImpact: 8,
-    revenueRisk: "high"
+    trafficRisk: "high"
   },
   canonical_missing: {
     section: "indexability",
@@ -37,7 +37,7 @@ const ISSUE_CATALOG = {
     title: "Canonical tag is missing",
     recommendation: "Add a canonical tag to reduce ambiguity around the preferred URL.",
     scoreImpact: 3,
-    revenueRisk: "low"
+    trafficRisk: "low"
   },
   title_missing: {
     section: "metadata",
@@ -45,7 +45,7 @@ const ISSUE_CATALOG = {
     title: "Title tag is missing",
     recommendation: "Add a unique page title that clearly communicates the topic and intent.",
     scoreImpact: 12,
-    revenueRisk: "high"
+    trafficRisk: "high"
   },
   title_length: {
     section: "metadata",
@@ -53,7 +53,7 @@ const ISSUE_CATALOG = {
     title: "Title length needs improvement",
     recommendation: "Keep the title concise and descriptive, ideally around 30 to 65 characters.",
     scoreImpact: 5,
-    revenueRisk: "medium"
+    trafficRisk: "medium"
   },
   meta_description_missing: {
     section: "metadata",
@@ -61,7 +61,7 @@ const ISSUE_CATALOG = {
     title: "Meta description is missing",
     recommendation: "Add a clear meta description that explains the page value and encourages clicks.",
     scoreImpact: 10,
-    revenueRisk: "medium"
+    trafficRisk: "medium"
   },
   meta_description_length: {
     section: "metadata",
@@ -69,7 +69,7 @@ const ISSUE_CATALOG = {
     title: "Meta description length needs improvement",
     recommendation: "Keep the meta description informative and close to 110 to 170 characters.",
     scoreImpact: 4,
-    revenueRisk: "medium"
+    trafficRisk: "medium"
   },
   h1_missing: {
     section: "headings",
@@ -77,7 +77,7 @@ const ISSUE_CATALOG = {
     title: "H1 is missing",
     recommendation: "Add one descriptive H1 that matches the page topic and primary intent.",
     scoreImpact: 10,
-    revenueRisk: "high"
+    trafficRisk: "high"
   },
   h1_multiple: {
     section: "headings",
@@ -85,7 +85,7 @@ const ISSUE_CATALOG = {
     title: "Multiple H1 tags found",
     recommendation: "Use a single clear H1 and demote supporting headings to lower levels.",
     scoreImpact: 5,
-    revenueRisk: "medium"
+    trafficRisk: "medium"
   },
   headings_skipped: {
     section: "headings",
@@ -93,7 +93,7 @@ const ISSUE_CATALOG = {
     title: "Heading levels are skipped",
     recommendation: "Use headings in a logical order to improve document structure.",
     scoreImpact: 5,
-    revenueRisk: "medium"
+    trafficRisk: "medium"
   },
   viewport_missing_or_weak: {
     section: "technical",
@@ -101,7 +101,7 @@ const ISSUE_CATALOG = {
     title: "Viewport meta tag is missing or weak",
     recommendation: "Add a responsive viewport tag such as width=device-width, initial-scale=1.",
     scoreImpact: 4,
-    revenueRisk: "medium"
+    trafficRisk: "medium"
   },
   lang_missing: {
     section: "technical",
@@ -109,7 +109,7 @@ const ISSUE_CATALOG = {
     title: "HTML lang attribute is missing",
     recommendation: "Set the document lang attribute on the html element.",
     scoreImpact: 2,
-    revenueRisk: "low"
+    trafficRisk: "low"
   },
   charset_missing: {
     section: "technical",
@@ -117,7 +117,7 @@ const ISSUE_CATALOG = {
     title: "Character set is missing or not detectable",
     recommendation: "Ensure the page exposes a valid character encoding such as UTF-8.",
     scoreImpact: 2,
-    revenueRisk: "low"
+    trafficRisk: "low"
   },
   jsonld_missing_or_invalid: {
     section: "schema",
@@ -125,7 +125,7 @@ const ISSUE_CATALOG = {
     title: "No valid JSON-LD schema found",
     recommendation: "Add valid JSON-LD structured data where it makes sense for this page type.",
     scoreImpact: 5,
-    revenueRisk: "medium"
+    trafficRisk: "medium"
   },
   jsonld_invalid: {
     section: "schema",
@@ -133,7 +133,7 @@ const ISSUE_CATALOG = {
     title: "Invalid JSON-LD detected",
     recommendation: "Fix JSON-LD syntax errors so schema markup can be parsed reliably.",
     scoreImpact: 5,
-    revenueRisk: "medium"
+    trafficRisk: "medium"
   },
   images_missing_alt_medium: {
     section: "images",
@@ -141,7 +141,7 @@ const ISSUE_CATALOG = {
     title: "Many meaningful images are missing alt text",
     recommendation: "Add concise alt text to meaningful images that convey content or context.",
     scoreImpact: 5,
-    revenueRisk: "medium"
+    trafficRisk: "medium"
   },
   images_missing_alt_high: {
     section: "images",
@@ -149,7 +149,7 @@ const ISSUE_CATALOG = {
     title: "Most meaningful images are missing alt text",
     recommendation: "Add alt text to meaningful images to improve accessibility and search context.",
     scoreImpact: 10,
-    revenueRisk: "medium"
+    trafficRisk: "medium"
   },
   placeholder_links_some: {
     section: "links",
@@ -157,7 +157,7 @@ const ISSUE_CATALOG = {
     title: "Placeholder links found",
     recommendation: "Replace placeholder links with real destinations or remove them.",
     scoreImpact: 1,
-    revenueRisk: "medium"
+    trafficRisk: "medium"
   },
   placeholder_links_many: {
     section: "links",
@@ -165,7 +165,7 @@ const ISSUE_CATALOG = {
     title: "Many placeholder links found",
     recommendation: "Replace empty, hash-only, or javascript links with meaningful destinations.",
     scoreImpact: 3,
-    revenueRisk: "medium"
+    trafficRisk: "medium"
   },
   weak_internal_link_signal: {
     section: "links",
@@ -173,7 +173,7 @@ const ISSUE_CATALOG = {
     title: "No internal links detected",
     recommendation: "Add internal links to related pages where helpful for users and crawl flow.",
     scoreImpact: 2,
-    revenueRisk: "medium"
+    trafficRisk: "medium"
   },
   og_title_missing: {
     section: "secondary",
@@ -181,7 +181,7 @@ const ISSUE_CATALOG = {
     title: "Open Graph title is missing",
     recommendation: "Add og:title to improve social sharing previews.",
     scoreImpact: 1,
-    revenueRisk: "low"
+    trafficRisk: "low"
   },
   og_description_missing: {
     section: "secondary",
@@ -189,7 +189,7 @@ const ISSUE_CATALOG = {
     title: "Open Graph description is missing",
     recommendation: "Add og:description to improve social sharing previews.",
     scoreImpact: 1,
-    revenueRisk: "low"
+    trafficRisk: "low"
   },
   og_image_missing: {
     section: "secondary",
@@ -197,7 +197,7 @@ const ISSUE_CATALOG = {
     title: "Open Graph image is missing",
     recommendation: "Add og:image so shared links have a clear preview image.",
     scoreImpact: 2,
-    revenueRisk: "low"
+    trafficRisk: "low"
   },
   twitter_basics_missing: {
     section: "secondary",
@@ -205,7 +205,7 @@ const ISSUE_CATALOG = {
     title: "Twitter card basics are missing",
     recommendation: "Add basic Twitter card tags for richer shared previews.",
     scoreImpact: 1,
-    revenueRisk: "low"
+    trafficRisk: "low"
   }
 };
 

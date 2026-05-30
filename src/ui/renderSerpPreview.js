@@ -7,6 +7,7 @@ export function renderSerpPreview(serpPreview) {
     <section class="serp-preview">
       <div class="eyebrow">${renderHelpLabel("SERP Preview")}</div>
       <p class="muted">Preview based on detected page title and meta description.</p>
+      <p class="serp-preview__note">Approximate snippet preview. Google may rewrite or truncate titles and descriptions.</p>
       <div class="serp-preview__url">${renderInteractiveValue(serpPreview.url)}</div>
       <h2 class="serp-preview__title">${escapeHtml(serpPreview.title)}</h2>
       <p>${escapeHtml(serpPreview.description)}</p>

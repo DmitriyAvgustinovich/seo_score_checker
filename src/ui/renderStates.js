@@ -1,13 +1,13 @@
 import { escapeHtml } from "./escapeHtml.js";
 
 function renderState(root, title, description, options = {}) {
-  const { loading = false, actionLabel = "", actionId = "" } = options;
+  const { loading = false, actionLabel = "", actionId = "", eyebrow = "SEO Score Checker" } = options;
 
   root.innerHTML = `
     <div class="stack">
       <section class="state-card">
         ${loading ? '<div class="spinner" aria-hidden="true"></div>' : ""}
-        <div class="eyebrow">SEO Score Checker</div>
+        ${eyebrow ? `<div class="eyebrow">${escapeHtml(eyebrow)}</div>` : ""}
         <h1 class="header__title">${escapeHtml(title)}</h1>
         <p>${escapeHtml(description)}</p>
         ${
@@ -22,6 +22,7 @@ function renderState(root, title, description, options = {}) {
 
 export function renderLoading(root) {
   renderState(root, "SEO Score Checker", "Checking the open URL...", {
+    eyebrow: "",
     loading: true
   });
 }

@@ -1,5 +1,4 @@
 import { escapeHtml } from "./escapeHtml.js";
-import { renderHelpTip } from "./helpText.js";
 import { renderInteractiveValue } from "./renderInteractiveValue.js";
 
 function getImpactClass(scoreImpact) {
@@ -41,8 +40,8 @@ export function renderTopFixes(topFixes) {
                 <p><strong>Why it matters:</strong> ${renderInteractiveValue(issue.whyItMatters || "")}</p>
                 <p><strong>Fix:</strong> ${renderInteractiveValue(issue.fix || issue.recommendation)}</p>
                 <div class="meta-row">
-                  <span class="impact-badge impact-badge--${getImpactClass(issue.scoreImpact)}">Impact: -${issue.scoreImpact} points ${renderHelpTip("Impact")}</span>
-                  <span class="confidence-badge confidence-badge--${getConfidenceClass(confidence)}">Confidence: ${escapeHtml(confidence)} ${renderHelpTip("Confidence")}</span>
+                  <span class="impact-badge impact-badge--${getImpactClass(issue.scoreImpact)}">Impact: -${issue.scoreImpact} points</span>
+                  <span class="confidence-badge confidence-badge--${getConfidenceClass(confidence)}">Confidence: ${escapeHtml(confidence)}</span>
                 </div>
               </article>
             `;

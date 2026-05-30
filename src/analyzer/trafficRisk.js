@@ -32,7 +32,7 @@ function buildClusterReason(unresolved) {
   return "Multiple important SEO issues were found, including " + important.join(", ") + ".";
 }
 
-export function calculateRevenueRisk(issues, pageData) {
+export function calculateTrafficRisk(issues, pageData) {
   const unresolved = issues.filter((issue) => !issue.passed);
   const highIssueIds = [
     "noindex",
