@@ -184,6 +184,14 @@ async function exportPdf() {
   }
 }
 
+function formatDateForFilename(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return year + "-" + month + "-" + day;
+}
+
 function exportLinksCsv() {
   if (currentState.status !== "success" || !currentState.data) {
     return;
@@ -220,8 +228,9 @@ function exportLinksCsv() {
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
+    const exportDate = formatDateForFilename(new Date());
     link.href = url;
-    link.download = (currentState.data.pageData.hostname || "page") + "-links.csv";
+    link.download = (currentState.data.pageData.hostname || "page") + "-links-" + exportDate + ".csv";
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -273,8 +282,9 @@ function exportResourcesCsv() {
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
+    const exportDate = formatDateForFilename(new Date());
     link.href = url;
-    link.download = (currentState.data.pageData.hostname || "page") + "-resources.csv";
+    link.download = (currentState.data.pageData.hostname || "page") + "-resources-" + exportDate + ".csv";
     document.body.appendChild(link);
     link.click();
     link.remove();

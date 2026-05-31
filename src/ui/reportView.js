@@ -117,7 +117,7 @@ function getScoreSectionLabel(sectionKey) {
 }
 
 function renderScoreDetails(audit, options = {}) {
-  const { open = false } = options;
+  const { embedded = false, open = false } = options;
   const sectionRows = Object.entries(audit.sections || {}).map(([sectionKey, section]) => [
     getScoreSectionLabel(sectionKey),
     section.maxScore,
@@ -144,7 +144,7 @@ function renderScoreDetails(audit, options = {}) {
     : "";
 
   return `
-    <details class="section-card score-details" ${open ? "open" : ""}>
+    <details class="${embedded ? "score-details score-details--embedded" : "section-card score-details"}" ${open ? "open" : ""}>
       <summary>Score details</summary>
       <p class="muted">A current-page SEO score based on checks in this extension. SEO Score starts from 100 points across 8 current-page sections. Detected issues subtract points. Critical issues can cap the final score.</p>
       ${renderTable(["Section", "Max", "Current"], sectionRows, { compact: true })}
@@ -350,7 +350,7 @@ function renderLinksTab(data) {
             <div class="eyebrow">Links</div>
             <h2 class="section-title">Page links inventory</h2>
           </div>
-          <button type="button" class="button button--secondary" data-action="export-links-csv">Export CSV</button>
+          <button type="button" class="button button--secondary" data-action="export-links-csv">Export as CSV</button>
         </div>
         <div class="link-stats" aria-label="Link statistics">
           ${renderStatBadge("Total", data.pageData.links.total)}
@@ -544,7 +544,7 @@ function renderResourcesTab(data, options = {}) {
     ...resources.js.map((item) => [item.type, item.kind, item.url])
   ];
   const exportMarkup = includeActions && rows.length
-    ? '<button type="button" class="button button--secondary resource-export-button" data-action="export-resources-csv">Export CSV</button>'
+    ? '<button type="button" class="button button--secondary resource-export-button" data-action="export-resources-csv">Export as CSV</button>'
     : "";
 
   return `
@@ -650,8 +650,7 @@ export function renderReportView(data, activeTab) {
     activeTab === "overview"
       ? `
         <div class="report-summary">
-          ${renderScore(data.audit)}
-          ${renderScoreDetails(data.audit)}
+          ${renderScore(data.audit, { detailsMarkup: renderScoreDetails(data.audit, { embedded: true }) })}
           ${renderRisk(data.risk)}
         </div>
       `
@@ -661,7 +660,7 @@ export function renderReportView(data, activeTab) {
     <section class="report-card">
       <div class="report-card__header">
         ${renderTabNav(activeTab)}
-        <button type="button" class="button button--secondary" data-action="export-pdf">Export PDF</button>
+        <button type="button" class="button button--secondary" data-action="export-pdf">Export Report</button>
       </div>
       <div class="report-card__body">
         ${summaryMarkup}
@@ -747,6 +746,10 @@ export const PRINTABLE_REPORT_STYLES = `
     max-width: 1100px;
     margin: 0 auto;
     padding: 24px;
+    display: grid;
+    gap: 16px;
+  }
+  .report-summary {
     display: grid;
     gap: 16px;
   }
@@ -913,6 +916,11 @@ export const PRINTABLE_REPORT_STYLES = `
   .score-details summary {
     cursor: pointer;
     font-weight: 700;
+  }
+  .score-details--embedded {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
   }
   .score-details__list {
     margin: 8px 0 0;
@@ -1374,14 +1382,13 @@ export function buildPrintableReport(data) {
     <header class="page-header">
       <div class="page-header__meta">
         <h1 class="title">SEO Score Checker Report</h1>
-        <div class="muted">${escapeHtml(data.pageData.hostname || "Unknown host")}</div>
         <div class="muted">${renderInteractiveValue(data.pageData.url || "")}</div>
         <div class="print-note">This report is based on the current page only. It does not crawl an entire domain. Page content is not sent to a server.</div>
       </div>
       <div class="page-actions">
-        <button type="button" class="action-button" id="print-report">Print</button>
-        <button type="button" class="action-button action-button--primary" id="copy-report-markdown">Copy as Markdown</button>
         <button type="button" class="action-button" id="close-report">Close</button>
+        <button type="button" class="action-button" id="print-report">Print</button>
+        <button type="button" class="action-button action-button--primary" id="export-report-markdown">Export as Markdown</button>
       </div>
     </header>
     <main class="wrap">
@@ -1390,10 +1397,9 @@ export function buildPrintableReport(data) {
         `
           <div class="muted">This report is based on the current page only. It does not crawl an entire domain. Page content is not sent to a server.</div>
           <div class="report-summary">
-            ${renderScore(data.audit)}
+            ${renderScore(data.audit, { detailsMarkup: renderScoreDetails(data.audit, { embedded: true, open: true }) })}
             ${renderRisk(data.risk)}
           </div>
-          ${renderScoreDetails(data.audit, { open: true })}
           ${renderActiveTab(data, "overview")}
         `
       )}

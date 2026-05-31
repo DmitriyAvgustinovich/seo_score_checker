@@ -601,6 +601,12 @@ body::before {
   color: var(--text);
 }
 
+.score-details--embedded {
+  margin-top: var(--space-lg);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border);
+}
+
 .score-details__list {
   margin: var(--space-sm) 0 0;
   padding-left: 18px;

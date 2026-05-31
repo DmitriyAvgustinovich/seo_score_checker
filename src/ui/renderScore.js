@@ -13,7 +13,8 @@ function getBadgeClass(scoreLabel) {
   return "badge badge--danger";
 }
 
-export function renderScore(audit) {
+export function renderScore(audit, options = {}) {
+  const { detailsMarkup = "" } = options;
   const progressWidth = Math.max(0, Math.min(100, audit.score));
   const safeLabel = escapeHtml(audit.scoreLabel);
 
@@ -29,6 +30,7 @@ export function renderScore(audit) {
       <div class="progress-track" aria-hidden="true">
         <div class="progress-bar" style="width: ${progressWidth}%;"></div>
       </div>
+      ${detailsMarkup}
     </section>
   `;
 }

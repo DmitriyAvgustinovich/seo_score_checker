@@ -28,23 +28,6 @@ function renderMissingState() {
   `;
 }
 
-async function copyTextToClipboard(text) {
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    await navigator.clipboard.writeText(text);
-    return;
-  }
-
-  const textarea = document.createElement("textarea");
-  textarea.value = text;
-  textarea.setAttribute("readonly", "");
-  textarea.style.position = "fixed";
-  textarea.style.left = "-9999px";
-  document.body.appendChild(textarea);
-  textarea.select();
-  document.execCommand("copy");
-  textarea.remove();
-}
-
 function showButtonFeedback(button, label) {
   if (!button) {
     return;
@@ -58,6 +41,26 @@ function showButtonFeedback(button, label) {
       button.textContent = originalLabel;
     }
   }, 1200);
+}
+
+function downloadTextFile(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function formatDateForFilename(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return year + "-" + month + "-" + day;
 }
 
 function hydrateReport() {
@@ -84,17 +87,18 @@ function hydrateReport() {
     });
   }
 
-  const copyMarkdownButton = document.getElementById("copy-report-markdown");
-  if (copyMarkdownButton) {
-    copyMarkdownButton.addEventListener("click", () => {
-      copyTextToClipboard(buildMarkdownReport(data))
-        .then(() => {
-          showButtonFeedback(copyMarkdownButton, "Copied");
-        })
-        .catch((error) => {
-          console.error("SEO Score Checker: Markdown copy failed.", error);
-          showButtonFeedback(copyMarkdownButton, "Failed");
-        });
+  const exportMarkdownButton = document.getElementById("export-report-markdown");
+  if (exportMarkdownButton) {
+    exportMarkdownButton.addEventListener("click", () => {
+      try {
+        const exportDate = formatDateForFilename(new Date());
+        const filename = (data.pageData.hostname || "page") + "-seo-report-" + exportDate + ".md";
+        downloadTextFile(buildMarkdownReport(data), filename, "text/markdown;charset=utf-8");
+        showButtonFeedback(exportMarkdownButton, "Exported");
+      } catch (error) {
+        console.error("SEO Score Checker: Markdown export failed.", error);
+        showButtonFeedback(exportMarkdownButton, "Failed");
+      }
     });
   }
 
