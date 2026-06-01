@@ -6,6 +6,33 @@ function findFirst(issues, ids) {
   return issues.find((issue) => ids.includes(issue.id) && !issue.passed) || null;
 }
 
+function estimateScoreFromIssues(issues) {
+  const scoreLoss = issues
+    .filter((issue) => !issue.passed && !issue.infoOnly)
+    .reduce((sum, issue) => sum + (Number(issue.scoreImpact) || 0), 0);
+
+  return Math.max(0, Math.min(100, 100 - scoreLoss));
+}
+
+function getRiskScore(issues, score) {
+  const numericScore = Number(score);
+  return Number.isFinite(numericScore) ? numericScore : estimateScoreFromIssues(issues);
+}
+
+function isMinorLengthRisk(issue, unresolved, riskScore) {
+  if (!["title_length", "meta_description_length"].includes(issue.id) || riskScore < 90) {
+    return false;
+  }
+
+  const compoundIssues = unresolved.filter(
+    (item) =>
+      !item.infoOnly &&
+      !["title_length", "meta_description_length", "placeholder_links_some"].includes(item.id)
+  );
+
+  return compoundIssues.length === 0;
+}
+
 function buildClusterReason(unresolved) {
   const important = unresolved
     .filter((issue) =>
@@ -32,8 +59,9 @@ function buildClusterReason(unresolved) {
   return "Multiple important SEO issues were found, including " + important.join(", ") + ".";
 }
 
-export function calculateTrafficRisk(issues, pageData) {
+export function calculateTrafficRisk(issues, pageData, score = null) {
   const unresolved = issues.filter((issue) => !issue.passed);
+  const riskScore = getRiskScore(issues, score);
   const highIssueIds = [
     "noindex",
     "canonical_other_url",
@@ -95,7 +123,7 @@ export function calculateTrafficRisk(issues, pageData) {
     return {
       level: "Medium",
       category: "Snippet & CTR",
-      reason: "Missing meta description on this commercial page may reduce search clicks even if the page can still rank.",
+      reason: "Missing meta description may reduce search clicks even if the page can still rank.",
       topRiskIssueId: "meta_description_missing"
     };
   }
@@ -141,12 +169,25 @@ export function calculateTrafficRisk(issues, pageData) {
     "viewport_missing_or_weak",
     "jsonld_missing_or_invalid",
     "jsonld_invalid",
-    "placeholder_links_some",
     "placeholder_links_many",
     "weak_internal_link_signal"
   ]);
 
   if (mediumPriority) {
+    if (isMinorLengthRisk(mediumPriority, unresolved, riskScore)) {
+      const lowLengthReasonById = {
+        title_length: "Minor title length issue found, but no critical traffic risks were detected.",
+        meta_description_length: "Minor meta description length issue found, but no critical traffic risks were detected."
+      };
+
+      return {
+        level: "Low",
+        category: "Minor Signals",
+        reason: lowLengthReasonById[mediumPriority.id],
+        topRiskIssueId: mediumPriority.id
+      };
+    }
+
     const reasonById = {
       title_length: "Title length may reduce search relevance and click potential.",
       meta_description_missing: "Missing meta description may reduce search clicks and traffic potential.",
@@ -182,7 +223,7 @@ export function calculateTrafficRisk(issues, pageData) {
     return {
       level: "Medium",
       category: "Content Clarity",
-      reason: "This commercial page looks light on supporting content and lacks contextual internal links.",
+      reason: "This page looks light on supporting content and lacks contextual internal links.",
       topRiskIssueId: null
     };
   }
@@ -194,7 +235,8 @@ export function calculateTrafficRisk(issues, pageData) {
     "og_title_missing",
     "og_description_missing",
     "og_image_missing",
-    "twitter_basics_missing"
+    "twitter_basics_missing",
+    "placeholder_links_some"
   ]);
 
   if (lowPriority) {

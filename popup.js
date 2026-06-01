@@ -143,13 +143,13 @@ async function runAudit() {
       return;
     }
 
-    if (!pageData) {
+    if (!pageData || pageData.unsupported) {
       setState({ status: "unsupported" });
       return;
     }
 
     const audit = scorePage(pageData);
-    const risk = calculateTrafficRisk(audit.issues, pageData);
+    const risk = calculateTrafficRisk(audit.issues, pageData, audit.score);
     const topFixes = getTopFixes(audit.issues, pageData);
     const serpPreview = buildSerpPreview(pageData);
 

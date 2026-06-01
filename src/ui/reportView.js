@@ -9,6 +9,7 @@ import { renderRisk } from "./renderRisk.js";
 import { renderScore } from "./renderScore.js";
 import { renderHelpLabel, renderHelpTip } from "./helpText.js";
 import { renderInteractiveValue } from "./renderInteractiveValue.js";
+import { formatPointLoss } from "./formatPoints.js";
 import { META_DESCRIPTION_THRESHOLDS, TITLE_THRESHOLDS } from "../constants/thresholds.js";
 
 function renderTable(headers, rows, options = {}) {
@@ -116,6 +117,15 @@ function getScoreSectionLabel(sectionKey) {
   return SECTION_LABELS[sectionKey] || sectionKey;
 }
 
+function getCriticalCapStatus(audit) {
+  if (!audit.appliedCap) {
+    return "No critical cap applied. Final score = section subtotal.";
+  }
+
+  const reason = audit.appliedCap.reason || audit.appliedCap.title || audit.appliedCap.issueId;
+  return "Final score capped at " + audit.appliedCap.maxScore + " because " + reason + ".";
+}
+
 function renderScoreDetails(audit, options = {}) {
   const { embedded = false, open = false } = options;
   const sectionRows = Object.entries(audit.sections || {}).map(([sectionKey, section]) => [
@@ -123,19 +133,20 @@ function renderScoreDetails(audit, options = {}) {
     section.maxScore,
     section.score
   ]);
-  sectionRows.push(["Total", 100, audit.score]);
+  const scoreMathRows = [
+    ["Section subtotal", audit.rawScore ?? audit.score],
+    ["Critical cap", getCriticalCapStatus(audit)],
+    ["Final score", audit.score]
+  ];
   const scoreDeductions = (audit.issues || [])
     .filter((issue) => !issue.passed && !issue.infoOnly && issue.scoreImpact > 0)
     .map(
       (issue) =>
-        `<li>${escapeHtml(issue.title)} (${escapeHtml(getScoreSectionLabel(issue.section))}): -${escapeHtml(issue.scoreImpact)} points</li>`
+        `<li>${escapeHtml(issue.title)} (${escapeHtml(getScoreSectionLabel(issue.section))}): ${escapeHtml(formatPointLoss(issue.scoreImpact))}</li>`
     );
   const infoOnlySignals = (audit.issues || [])
     .filter((issue) => !issue.passed && issue.infoOnly)
     .map((issue) => `<li>${escapeHtml(issue.title)}</li>`);
-  const capText = audit.appliedCap
-    ? "Final score capped at " + audit.appliedCap.maxScore + " because " + audit.appliedCap.title.toLowerCase() + " was detected."
-    : "No critical cap applied.";
   const infoOnlyMarkup = infoOnlySignals.length
     ? `
       <div class="section-subtitle">Informational-only signals</div>
@@ -155,7 +166,7 @@ function renderScoreDetails(audit, options = {}) {
           : '<div class="passed-item">No score deductions detected.</div>'
       }
       <div class="section-subtitle">Critical cap status</div>
-      <div class="passed-item score-details__cap">${escapeHtml(capText)}</div>
+      ${renderTable(["Detail", "Value"], scoreMathRows, { compact: true })}
       ${infoOnlyMarkup}
     </details>
   `;
@@ -178,7 +189,7 @@ function renderIssueCards(title, issues, emptyState) {
                   (issue) => {
                     const scoreMeta = issue.infoOnly
                       ? '<span class="muted">Diagnostic insight, no score loss</span>'
-                      : `<span class="impact-badge impact-badge--${issue.severity}">Impact: -${issue.scoreImpact} points</span>`;
+                      : `<span class="impact-badge impact-badge--${issue.severity}">Impact: ${formatPointLoss(issue.scoreImpact)}</span>`;
                     return `
                       <article class="issue issue--${issue.severity}">
                         <div class="fix-row">

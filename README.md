@@ -19,7 +19,7 @@ The first screen shows:
 - `SEO Score` from `0` to `100`
 - `Grade`: `Good`, `Needs improvement`, or `Critical issues`
 - `Traffic Risk`: `Low`, `Medium`, or `High`
-- explainable `Top 3 Fixes`
+- explainable `Top fixes`
 - `SERP Preview`
 - `Section Breakdown`
 
@@ -102,6 +102,8 @@ Internal risk code uses `trafficRisk`; visible UI uses `Traffic Risk`.
 
 It does not store full page HTML, store inline script source, crawl links, fetch linked pages, or send DOM data to a server.
 
+Non-HTML documents are not scored. The extension shows an unsupported-page state for PDF/image URLs and any document whose `document.contentType` is not `text/html` or `application/xhtml+xml`.
+
 ## SEO Score Formula
 
 The score is weighted and section-based, not a raw warning count:
@@ -165,6 +167,8 @@ Penalties:
 - `-3` for missing canonical
 - `-8` for invalid canonical
 - `-8` for canonical pointing to another URL
+
+Canonical comparison ignores URL hash, normalizes trailing slashes, and removes known tracking parameters (`utm_*`, `gclid`, `fbclid`, `msclkid`, `yclid`, `gbraid`, `wbraid`, `_ga`, `_gl`, `mc_cid`, `mc_eid`). A canonical that matches the same origin/path after removing those tracking parameters is treated as matching the current URL. A canonical with a genuinely different path remains `canonical_other_url`.
 
 ### Metadata
 
@@ -269,12 +273,12 @@ Some signals are shown as diagnostics but do not reduce the score:
 - URL/topic mismatch
 - missing contextual internal links
 - long paragraphs
-- low content depth on commercial pages
+- low content depth for this page type
 - generic image filenames
 - images without explicit dimensions
 - generic anchor text
 
-These issues have `infoOnly = true` and are excluded from `Top 3 Fixes`.
+These issues have `infoOnly = true` and are excluded from `Top fixes`.
 
 ## Traffic Risk Rules
 
@@ -296,14 +300,14 @@ High risk is reserved for strong current-page signals:
 Medium risk covers issues like:
 
 - missing meta description
-- weak title/meta length
+- weak title/meta length when the score is below 90 or other compound issues are present
 - missing H1 without a major cluster
 - multiple H1
 - weak heading structure
 - invalid or missing useful schema
 - many images without alt
 - missing viewport
-- notable link/placeholder issues
+- many placeholder links
 
 ### Low
 
@@ -315,8 +319,10 @@ Low risk covers minor/supporting signals:
 - missing charset
 - social-only metadata
 - minor link count insights
+- some placeholder links
+- minor title/meta length deviations on otherwise strong pages
 
-## Top 3 Fixes
+## Top Fixes
 
 Top fixes are generated from unresolved, non-info-only issues.
 
@@ -368,11 +374,11 @@ Popup above the fold is score-first:
 2. SEO Score
 3. Grade
 4. Traffic Risk
-5. Top 3 Fixes
+5. Top fixes
 6. SERP Preview
 7. Section Breakdown
 
-The Summary view also includes a collapsed `Score details` accordion with section weights, current section scores, score deductions, critical cap status, and informational-only signals when present.
+The Summary view also includes a collapsed `Score details` accordion with section weights, current section scores, score deductions, section subtotal, critical cap status, final score, and informational-only signals when present.
 
 Report tabs:
 
@@ -438,6 +444,12 @@ General refresh hint:
 Refresh the page and run the check again.
 ```
 
+Unsupported-page message:
+
+```text
+SEO Score Checker analyzes regular HTML pages only. Open a public HTML page and run the check again.
+```
+
 ## Manual QA Checklist
 
 Check:
@@ -463,7 +475,7 @@ Expected:
 - no crashes
 - clear error on restricted pages
 - score changes are explainable
-- Top 3 Fixes include evidence
+- Top fixes include evidence
 - Traffic Risk is not shown as a revenue prediction
 - social-only issues stay low/secondary
 - no external network requests for analysis

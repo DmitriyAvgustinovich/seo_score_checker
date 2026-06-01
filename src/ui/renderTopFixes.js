@@ -1,4 +1,5 @@
 import { escapeHtml } from "./escapeHtml.js";
+import { formatPointLoss } from "./formatPoints.js";
 import { renderInteractiveValue } from "./renderInteractiveValue.js";
 
 function getImpactClass(scoreImpact) {
@@ -40,7 +41,7 @@ export function renderTopFixes(topFixes) {
                 <p><strong>Why it matters:</strong> ${renderInteractiveValue(issue.whyItMatters || "")}</p>
                 <p><strong>Fix:</strong> ${renderInteractiveValue(issue.fix || issue.recommendation)}</p>
                 <div class="meta-row">
-                  <span class="impact-badge impact-badge--${getImpactClass(issue.scoreImpact)}">Impact: -${issue.scoreImpact} points</span>
+                  <span class="impact-badge impact-badge--${getImpactClass(issue.scoreImpact)}">Impact: ${formatPointLoss(issue.scoreImpact)}</span>
                   <span class="confidence-badge confidence-badge--${getConfidenceClass(confidence)}">Confidence: ${escapeHtml(confidence)}</span>
                 </div>
               </article>
@@ -52,7 +53,7 @@ export function renderTopFixes(topFixes) {
 
   return `
     <section class="top-fixes">
-      <div class="eyebrow">Top 3 Fixes</div>
+      <div class="eyebrow">Top fixes</div>
       <p class="muted">Top fixes are based on detected page signals and confidence.</p>
       <div class="top-fixes__list">${body}</div>
     </section>

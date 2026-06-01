@@ -1,4 +1,5 @@
 import { escapeHtml } from "./escapeHtml.js";
+import { formatPointLoss } from "./formatPoints.js";
 import { renderHelpLabel, renderHelpTip } from "./helpText.js";
 import { renderInteractiveValue } from "./renderInteractiveValue.js";
 
@@ -55,7 +56,7 @@ function renderIssueCard(issue) {
   const badgeLabel = issue.infoOnly ? "Insight" : formatSeverityLabel(issue.severity);
   const scoreMeta = issue.infoOnly
     ? '<span class="muted">Diagnostic insight, no score loss</span>'
-    : `<span class="impact-badge impact-badge--${issue.severity}">Impact: -${issue.scoreImpact} points</span>`;
+    : `<span class="impact-badge impact-badge--${issue.severity}">Impact: ${formatPointLoss(issue.scoreImpact)}</span>`;
 
   return `
     <article class="issue issue--${issue.severity}">

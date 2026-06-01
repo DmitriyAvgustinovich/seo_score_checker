@@ -36,7 +36,11 @@ export function renderRestricted(root) {
 }
 
 export function renderUnsupported(root) {
-  renderState(root, "SEO Score Checker", "This page cannot be analyzed. Open a regular website page and try again.");
+  renderState(
+    root,
+    "SEO Score Checker",
+    "SEO Score Checker analyzes regular HTML pages only. Open a public HTML page and run the check again."
+  );
 }
 
 export function renderError(root) {

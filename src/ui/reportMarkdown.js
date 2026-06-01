@@ -1,3 +1,5 @@
+import { formatPointLoss } from "./formatPoints.js";
+
 const SECTION_LABELS = {
   indexability: "Indexability",
   metadata: "Metadata",
@@ -83,20 +85,25 @@ function issueRows(issues) {
   return issues.map((issue) => [
     issue.title,
     issue.severity || "info",
-    issue.scoreImpact ? "-" + issue.scoreImpact + " points" : "No score loss",
+    issue.scoreImpact ? formatPointLoss(issue.scoreImpact) : "No score loss",
     issue.recommendation || ""
   ]);
 }
 
 function scoreDetailRows(audit) {
-  const rows = Object.entries(audit.sections || {}).map(([key, section]) => [
+  return Object.entries(audit.sections || {}).map(([key, section]) => [
     SECTION_LABELS[key] || key,
     section.maxScore,
     section.score
   ]);
+}
 
-  rows.push(["Total", 100, audit.score]);
-  return rows;
+function scoreMathRows(audit) {
+  return [
+    ["Section subtotal", audit.rawScore ?? audit.score],
+    ["Critical cap", scoreCapText(audit)],
+    ["Final score", audit.score]
+  ];
 }
 
 function scoreDeductionRows(audit) {
@@ -105,7 +112,7 @@ function scoreDeductionRows(audit) {
     .map((issue) => [
       issue.title,
       SECTION_LABELS[issue.section] || issue.section,
-      "-" + issue.scoreImpact
+      formatPointLoss(issue.scoreImpact)
     ]);
 }
 
@@ -116,9 +123,12 @@ function informationalIssueRows(audit) {
 }
 
 function scoreCapText(audit) {
-  return audit.appliedCap
-    ? "Final score capped at " + audit.appliedCap.maxScore + " because " + audit.appliedCap.title.toLowerCase() + " was detected."
-    : "No critical cap applied.";
+  if (!audit.appliedCap) {
+    return "No critical cap applied. Final score = section subtotal.";
+  }
+
+  const reason = audit.appliedCap.reason || audit.appliedCap.title || audit.appliedCap.issueId;
+  return "Final score capped at " + audit.appliedCap.maxScore + " because " + reason + ".";
 }
 
 function resourceRows(resources) {
@@ -186,13 +196,13 @@ export function buildMarkdownReport(data) {
     "",
     table(["Section", "Max", "Current"], scoreDetailRows(audit)),
     "",
+    table(["Detail", "Value"], scoreMathRows(audit)),
+    "",
     "### Score deductions",
     "",
     scoreDeductions.length
       ? table(["Issue", "Section", "Points"], scoreDeductions)
       : "No score deductions detected.",
-    "",
-    scoreCapText(audit),
     "",
     ...(informationalRows.length
       ? [
@@ -226,7 +236,7 @@ export function buildMarkdownReport(data) {
   if (topFixes.length) {
     topFixes.forEach((fix, index) => {
       lines.push(index + 1 + ". **" + fix.title + "**");
-      lines.push("   - Impact: -" + fix.scoreImpact + " points");
+      lines.push("   - Impact: " + formatPointLoss(fix.scoreImpact));
       lines.push("   - Confidence: " + fix.confidence);
       lines.push("   - Evidence: " + fix.evidence);
       lines.push("   - Why it matters: " + fix.whyItMatters);

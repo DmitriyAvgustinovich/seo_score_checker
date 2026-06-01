@@ -1,4 +1,19 @@
 (() => {
+  const SUPPORTED_DOCUMENT_CONTENT_TYPES = new Set(["text/html", "application/xhtml+xml"]);
+  const UNSUPPORTED_DOCUMENT_EXTENSION_PATTERN = /\.(pdf|png|jpe?g|gif|webp|svg|ico)$/i;
+  const TRACKING_PARAM_NAMES = new Set([
+    "gclid",
+    "fbclid",
+    "msclkid",
+    "yclid",
+    "gbraid",
+    "wbraid",
+    "_ga",
+    "_gl",
+    "mc_cid",
+    "mc_eid"
+  ]);
+
   function textContentOf(node) {
     return node ? (node.textContent || "").trim() : "";
   }
@@ -43,6 +58,37 @@
     return node ? (node.getAttribute("content") || "").trim() : "";
   }
 
+  function isTrackingParam(name) {
+    const normalized = String(name || "").toLowerCase();
+    return normalized.startsWith("utm_") || TRACKING_PARAM_NAMES.has(normalized);
+  }
+
+  function removeTrackingParams(url) {
+    Array.from(url.searchParams.keys()).forEach((name) => {
+      if (isTrackingParam(name)) {
+        url.searchParams.delete(name);
+      }
+    });
+    url.searchParams.sort();
+  }
+
+  function isUnsupportedDocument() {
+    let pathname = "";
+
+    try {
+      pathname = new URL(location.href).pathname;
+    } catch (error) {
+      pathname = location.pathname || "";
+    }
+
+    if (UNSUPPORTED_DOCUMENT_EXTENSION_PATTERN.test(pathname)) {
+      return true;
+    }
+
+    const contentType = String(document.contentType || "").toLowerCase().split(";")[0].trim();
+    return !SUPPORTED_DOCUMENT_CONTENT_TYPES.has(contentType);
+  }
+
   function normalizeComparableUrl(url) {
     try {
       const parsed = new URL(url, location.href);
@@ -55,6 +101,8 @@
       if (parsed.pathname !== "/") {
         parsed.pathname = parsed.pathname.replace(/\/+$/, "");
       }
+
+      removeTrackingParams(parsed);
 
       return parsed.toString();
     } catch (error) {
@@ -661,6 +709,14 @@
   }
 
   async function collectPageData() {
+    if (isUnsupportedDocument()) {
+      return {
+        unsupported: true,
+        url: location.href,
+        contentType: document.contentType || ""
+      };
+    }
+
     if (!document.body) {
       return null;
     }

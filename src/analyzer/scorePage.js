@@ -14,6 +14,14 @@ const CRITICAL_SCORE_CAPS = [
   ["h1_missing", 79]
 ];
 
+const CRITICAL_SCORE_CAP_REASONS = {
+  noindex: "the page is marked noindex",
+  title_missing: "the title tag is missing",
+  canonical_invalid: "the canonical URL is invalid",
+  canonical_other_url: "the canonical points to another URL",
+  h1_missing: "the H1 is missing"
+};
+
 function hasGoodTitleLength(length) {
   return length >= TITLE_THRESHOLDS.goodMin && length <= TITLE_THRESHOLDS.goodMax;
 }
@@ -386,7 +394,8 @@ function getScoreCap(issues) {
       return {
         issueId,
         maxScore,
-        title: issue ? issue.title : issueId
+        title: issue ? issue.title : issueId,
+        reason: CRITICAL_SCORE_CAP_REASONS[issueId] || (issue ? issue.title.toLowerCase() : issueId)
       };
     }
 
@@ -475,7 +484,7 @@ export function scorePage(pageData) {
       buildInfoIssue(
         "content_depth_low",
         "headings",
-        "Content depth looks light for a commercial page",
+        "Content depth looks light for this page type",
         "Consider adding clearer supporting content that answers key user questions."
       )
     );
