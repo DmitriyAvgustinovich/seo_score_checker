@@ -1,0 +1,8 @@
+.git
+.gitignore
+.cursor
+node_modules
+agent-transcripts
+*.log
+*.tmp
+*.md
