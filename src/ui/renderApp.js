@@ -1,10 +1,10 @@
 import { renderReportView } from "./reportView.js";
 import { renderError, renderLoading, renderRestricted, renderUnsupported } from "./renderStates.js";
 
-function renderAudit(root, data, activeTab) {
+function renderAudit(root, data, activeTab, ratingWidget) {
   root.innerHTML = `
     <div class="stack">
-      ${renderReportView(data, activeTab)}
+      ${renderReportView(data, activeTab, ratingWidget)}
     </div>
   `;
 }
@@ -31,6 +31,6 @@ export function renderApp(root, state) {
   }
 
   if (state.status === "success") {
-    renderAudit(root, state.data, state.activeTab || "overview");
+    renderAudit(root, state.data, state.activeTab || "overview", state.ratingWidget);
   }
 }

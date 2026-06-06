@@ -9,6 +9,7 @@ import { renderRisk } from "./renderRisk.js";
 import { renderScore } from "./renderScore.js";
 import { renderHelpLabel, renderHelpTip } from "./helpText.js";
 import { renderInteractiveValue } from "./renderInteractiveValue.js";
+import { renderRatingWidget } from "./ratingWidget.js";
 import { formatPointLoss } from "./formatPoints.js";
 import { META_DESCRIPTION_THRESHOLDS, TITLE_THRESHOLDS } from "../constants/thresholds.js";
 
@@ -656,7 +657,7 @@ function renderActiveTab(data, activeTab) {
   `;
 }
 
-export function renderReportView(data, activeTab) {
+export function renderReportView(data, activeTab, ratingWidget) {
   const summaryMarkup =
     activeTab === "overview"
       ? `
@@ -678,6 +679,7 @@ export function renderReportView(data, activeTab) {
         <div class="report-tab-panel">
           ${renderActiveTab(data, activeTab)}
         </div>
+        ${renderRatingWidget(ratingWidget)}
       </div>
     </section>
   `;

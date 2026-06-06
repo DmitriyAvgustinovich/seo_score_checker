@@ -75,6 +75,7 @@ body::before {
 .section-card,
 .serp-preview,
 .top-fixes,
+.rating-widget,
 .state-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -118,6 +119,7 @@ body::before {
 .top-fixes,
 .serp-preview,
 .section-card,
+.rating-widget,
 .state-card,
 .report-card {
   padding: var(--space-lg);
@@ -395,6 +397,74 @@ body::before {
   display: grid;
   gap: var(--space-md);
   margin-top: 0;
+}
+
+.rating-widget {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.rating-widget__main,
+.rating-widget__message {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.rating-widget__main p,
+.rating-widget__message p {
+  margin: var(--space-xs) 0 0;
+}
+
+.rating-widget__stars {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+.rating-widget__star {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #cbd5e1;
+  cursor: pointer;
+  font-size: 27px;
+  line-height: 1;
+  transition:
+    color 150ms ease,
+    transform 150ms ease,
+    background-color 150ms ease;
+}
+
+.rating-widget__star:hover,
+.rating-widget__star:focus-visible,
+.rating-widget__star--selected {
+  color: #f59e0b;
+}
+
+.rating-widget__star:hover,
+.rating-widget__star:focus-visible {
+  background: rgba(245, 158, 11, 0.1);
+  outline: 0;
+  transform: translateY(-1px);
+}
+
+.rating-widget__actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.rating-widget__dismiss {
+  justify-self: flex-end;
 }
 
 .tab-button {
@@ -905,6 +975,8 @@ body::before {
   }
 
   .report-card__header,
+  .rating-widget__main,
+  .rating-widget__message,
   .score-row,
   .risk-row,
   .section-row,
@@ -922,6 +994,16 @@ body::before {
   .tabs {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .rating-widget__stars {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .rating-widget__actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .value-row {

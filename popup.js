@@ -3,6 +3,13 @@ import { calculateTrafficRisk } from "./src/analyzer/trafficRisk.js";
 import { scorePage } from "./src/analyzer/scorePage.js";
 import { buildSerpPreview } from "./src/analyzer/serpPreview.js";
 import { renderApp } from "./src/ui/renderApp.js";
+import {
+  CWS_REVIEW_URL,
+  FEEDBACK_FORM_URL,
+  RATING_WIDGET_DISMISS_COOLDOWN_MS,
+  RATING_WIDGET_KEYS,
+  RATING_WIDGET_SHOW_COOLDOWN_MS
+} from "./src/ui/ratingWidget.js";
 import { bindHelpTooltips } from "./src/ui/tooltipPlacement.js";
 
 const appRoot = document.getElementById("app");
@@ -10,8 +17,175 @@ const appRoot = document.getElementById("app");
 const RESTRICTED_PROTOCOLS = ["chrome:", "edge:", "brave:", "about:", "chrome-extension:"];
 
 let currentState = {
-  status: "loading"
+  status: "loading",
+  ratingWidget: getRatingWidgetState()
 };
+
+function getStoredTimestamp(key) {
+  try {
+    const value = Number(localStorage.getItem(key));
+    return Number.isFinite(value) ? value : 0;
+  } catch (error) {
+    console.error("SEO Score Checker: rating timestamp read failed.", error);
+    return 0;
+  }
+}
+
+function getStoredRating() {
+  try {
+    const value = Number(localStorage.getItem(RATING_WIDGET_KEYS.selectedRating));
+    return Number.isInteger(value) && value >= 1 && value <= 5 ? value : 0;
+  } catch (error) {
+    console.error("SEO Score Checker: rating value read failed.", error);
+    return 0;
+  }
+}
+
+function getStoredBoolean(key) {
+  try {
+    return localStorage.getItem(key) === "true";
+  } catch (error) {
+    console.error("SEO Score Checker: rating flag read failed.", error);
+    return false;
+  }
+}
+
+function isWithinCooldown(timestamp, cooldownMs, now = Date.now()) {
+  return timestamp > 0 && now - timestamp < cooldownMs;
+}
+
+function getRatingWidgetState() {
+  const now = Date.now();
+  const completed = getStoredBoolean(RATING_WIDGET_KEYS.completed);
+  const dismissedAt = getStoredTimestamp(RATING_WIDGET_KEYS.dismissedAt);
+  const lastShownAt = getStoredTimestamp(RATING_WIDGET_KEYS.lastShownAt);
+  const visible =
+    !completed &&
+    !isWithinCooldown(dismissedAt, RATING_WIDGET_DISMISS_COOLDOWN_MS, now) &&
+    !isWithinCooldown(lastShownAt, RATING_WIDGET_SHOW_COOLDOWN_MS, now);
+
+  return {
+    cwsReviewUrl: CWS_REVIEW_URL,
+    mode: "prompt",
+    selectedRating: getStoredRating(),
+    shownThisSession: false,
+    visible
+  };
+}
+
+function markRatingWidgetShown(state) {
+  if (!state.visible || state.shownThisSession) {
+    return state;
+  }
+
+  try {
+    localStorage.setItem(RATING_WIDGET_KEYS.lastShownAt, String(Date.now()));
+  } catch (error) {
+    console.error("SEO Score Checker: rating shown state save failed.", error);
+  }
+
+  return {
+    ...state,
+    shownThisSession: true
+  };
+}
+
+function getRatingWidgetForSuccess() {
+  if (currentState.ratingWidget && currentState.ratingWidget.shownThisSession) {
+    return currentState.ratingWidget;
+  }
+
+  return markRatingWidgetShown(getRatingWidgetState());
+}
+
+function saveRatingState(rating) {
+  try {
+    localStorage.setItem(RATING_WIDGET_KEYS.selectedRating, String(rating));
+    localStorage.setItem(RATING_WIDGET_KEYS.ratedAt, String(Date.now()));
+    localStorage.setItem(RATING_WIDGET_KEYS.completed, "true");
+  } catch (error) {
+    console.error("SEO Score Checker: rating save failed.", error);
+  }
+}
+
+function dismissRatingWidget() {
+  try {
+    localStorage.setItem(RATING_WIDGET_KEYS.dismissedAt, String(Date.now()));
+    localStorage.setItem(RATING_WIDGET_KEYS.completed, "false");
+  } catch (error) {
+    console.error("SEO Score Checker: rating dismiss save failed.", error);
+  }
+
+  setState({
+    ratingWidget: {
+      ...currentState.ratingWidget,
+      mode: "prompt",
+      visible: false
+    }
+  });
+}
+
+function isConfiguredExternalUrl(url) {
+  return /^https?:\/\//i.test(url);
+}
+
+async function openExternalUrl(url) {
+  if (!isConfiguredExternalUrl(url)) {
+    console.error("SEO Score Checker: external URL is not configured.", url);
+    return;
+  }
+
+  const tabsApi = globalThis.chrome && globalThis.chrome.tabs;
+
+  try {
+    if (tabsApi && tabsApi.create) {
+      await tabsApi.create({ url });
+      return;
+    }
+  } catch (error) {
+    console.error("SEO Score Checker: chrome.tabs.create failed.", error);
+  }
+
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+function handleRatingClick(rating) {
+  saveRatingState(rating);
+
+  if (rating < 2) {
+    void openExternalUrl(FEEDBACK_FORM_URL);
+    setState({
+      ratingWidget: {
+        ...currentState.ratingWidget,
+        mode: "low",
+        selectedRating: rating,
+        visible: true
+      }
+    });
+    return;
+  }
+
+  if (rating >= 4) {
+    setState({
+      ratingWidget: {
+        ...currentState.ratingWidget,
+        mode: "review",
+        selectedRating: rating,
+        visible: true
+      }
+    });
+    return;
+  }
+
+  setState({
+    ratingWidget: {
+      ...currentState.ratingWidget,
+      mode: "neutral",
+      selectedRating: rating,
+      visible: true
+    }
+  });
+}
 
 async function openResourceLink(link) {
   const openUrl = link.dataset.openUrl || link.href;
@@ -86,6 +260,41 @@ function bindActions() {
       void openResourceLink(link);
     });
   });
+
+  appRoot.querySelectorAll("[data-action='select-rating']").forEach((button) => {
+    button.addEventListener("click", () => {
+      const rating = Number(button.dataset.rating);
+      if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+        return;
+      }
+
+      handleRatingClick(rating);
+    });
+  });
+
+  appRoot.querySelectorAll("[data-action='dismiss-rating-widget']").forEach((button) => {
+    button.addEventListener("click", () => {
+      dismissRatingWidget();
+    });
+  });
+
+  appRoot.querySelectorAll("[data-action='open-feedback-form']").forEach((button) => {
+    button.addEventListener("click", () => {
+      void openExternalUrl(FEEDBACK_FORM_URL);
+    });
+  });
+
+  appRoot.querySelectorAll("[data-action='open-cws-review']").forEach((button) => {
+    button.addEventListener("click", () => {
+      void openExternalUrl(CWS_REVIEW_URL);
+      setState({
+        ratingWidget: {
+          ...currentState.ratingWidget,
+          visible: false
+        }
+      });
+    });
+  });
 }
 
 function isRestrictedUrl(url) {
@@ -156,6 +365,7 @@ async function runAudit() {
     setState({
       status: "success",
       activeTab: currentState.activeTab || "overview",
+      ratingWidget: getRatingWidgetForSuccess(),
       data: {
         pageData,
         audit,
